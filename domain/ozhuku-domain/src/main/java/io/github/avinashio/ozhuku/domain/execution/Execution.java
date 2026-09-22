@@ -209,4 +209,30 @@ public final class Execution {
                 + ", completedAt=" + completedAt
                 + '}';
     }
+
+    /**
+     * Rehydrates an execution from durable persistence.
+     *
+     * <p>This method is intended for persistence adapters reconstructing
+     * previously persisted domain state. It does not perform a lifecycle
+     * transition.</p>
+     *
+     * @param reference execution reference
+     * @param status persisted execution status
+     * @param startedAt persisted start timestamp
+     * @param completedAt persisted completion timestamp
+     * @return rehydrated execution
+     */
+    public static Execution rehydrate(
+            final ExecutionReference reference,
+            final ExecutionStatus status,
+            final Instant startedAt,
+            final Instant completedAt) {
+
+        return new Execution(
+                reference,
+                status,
+                startedAt,
+                completedAt);
+    }
 }
