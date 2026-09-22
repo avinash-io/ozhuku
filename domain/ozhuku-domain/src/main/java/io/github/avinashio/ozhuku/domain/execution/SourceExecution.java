@@ -213,4 +213,17 @@ public final class SourceExecution {
                 + ", completedAt=" + completedAt
                 + '}';
     }
+
+    public static SourceExecution rehydrate(
+            final SourceExecutionReference reference,
+            final SourceExecutionStatus status,
+            final Instant startedAt,
+            final Instant completedAt) {
+
+        return new SourceExecution(
+                reference,
+                status,
+                startedAt,
+                completedAt);
+    }
 }
