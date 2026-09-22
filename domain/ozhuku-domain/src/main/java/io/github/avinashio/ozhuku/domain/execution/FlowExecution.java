@@ -240,4 +240,33 @@ public final class FlowExecution {
                 + ", completedAt=" + completedAt
                 + '}';
     }
+
+    /**
+     * Rehydrates a flow execution from durable persistence.
+     *
+     * <p>This method is intended for persistence adapters reconstructing
+     * previously persisted domain state. It does not perform a lifecycle
+     * transition.</p>
+     *
+     * @param executionId execution identifier
+     * @param flowId flow identifier
+     * @param status persisted flow execution status
+     * @param startedAt persisted start timestamp
+     * @param completedAt persisted completion timestamp
+     * @return rehydrated flow execution
+     */
+    public static FlowExecution rehydrate(
+            final ExecutionId executionId,
+            final FlowId flowId,
+            final FlowExecutionStatus status,
+            final Instant startedAt,
+            final Instant completedAt) {
+
+        return new FlowExecution(
+                executionId,
+                flowId,
+                status,
+                startedAt,
+                completedAt);
+    }
 }
