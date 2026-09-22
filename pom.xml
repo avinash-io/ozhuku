@@ -22,6 +22,8 @@
     <modules>
         <module>foundation/ozhuku-foundation</module>
         <module>domain/ozhuku-domain</module>
+        <module>ports/ozhuku-persistence-api</module>
+        <module>adapters/ozhuku-persistence-postgres</module>
     </modules>
 
     <properties>
