@@ -217,4 +217,17 @@ public final class DestinationExecution {
                 + ", completedAt=" + completedAt
                 + '}';
     }
+
+    public static DestinationExecution rehydrate(
+            final DestinationExecutionReference reference,
+            final DestinationExecutionStatus status,
+            final Instant startedAt,
+            final Instant completedAt) {
+
+        return new DestinationExecution(
+                reference,
+                status,
+                startedAt,
+                completedAt);
+    }
 }
