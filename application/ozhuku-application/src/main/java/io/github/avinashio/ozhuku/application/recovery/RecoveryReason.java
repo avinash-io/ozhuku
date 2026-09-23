@@ -1,0 +1,16 @@
+package io.github.avinashio.ozhuku.application.recovery;
+
+public enum RecoveryReason {
+
+    COMMIT_CONFIRMED,
+
+    COMMIT_NOT_CONFIRMED,
+
+    DESTINATION_OUTCOME_CONFIRMED,
+
+    DESTINATION_OUTCOME_NOT_CONFIRMED,
+
+    DESTINATION_OUTCOME_UNKNOWN,
+
+    EXECUTION_NOT_RECOVERABLE
+}
