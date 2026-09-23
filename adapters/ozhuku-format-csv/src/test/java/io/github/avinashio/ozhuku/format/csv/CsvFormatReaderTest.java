@@ -183,7 +183,7 @@ class CsvFormatReaderTest {
 
         reader.close();
     }
-    
+
     @Test
     void shouldHandleEmptyInput() throws Exception {
 
