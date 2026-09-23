@@ -29,6 +29,7 @@
 
         <module>adapters/ozhuku-persistence-postgres</module>
         <module>adapters/ozhuku-storage-file</module>
+        <module>adapters/ozhuku-format-csv</module>
 
         <module>application/ozhuku-application</module>
 
