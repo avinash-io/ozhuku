@@ -25,6 +25,7 @@
 
         <module>ports/ozhuku-persistence-api</module>
         <module>ports/ozhuku-storage-api</module>
+        <module>ports/ozhuku-format-api</module>
 
         <module>adapters/ozhuku-persistence-postgres</module>
         <module>adapters/ozhuku-storage-file</module>
@@ -32,6 +33,7 @@
         <module>application/ozhuku-application</module>
 
         <module>integration/ozhuku-integration-tests</module>
+
     </modules>
 
     <properties>
