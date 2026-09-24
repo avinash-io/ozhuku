@@ -32,6 +32,12 @@
 
         <dependency>
             <groupId>io.github.avinashio.ozhuku</groupId>
+            <artifactId>ozhuku-format-api</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>io.github.avinashio.ozhuku</groupId>
             <artifactId>ozhuku-foundation</artifactId>
             <version>${project.version}</version>
         </dependency>
