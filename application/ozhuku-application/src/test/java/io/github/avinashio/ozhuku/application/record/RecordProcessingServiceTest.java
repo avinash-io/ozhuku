@@ -1,6 +1,7 @@
 package io.github.avinashio.ozhuku.application.record;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.avinashio.ozhuku.domain.delivery.ConflictBehavior;
@@ -63,6 +64,137 @@ class RecordProcessingServiceTest {
         assertTrue(formatReader.closed());
         assertTrue(formatWriter.opened());
         assertTrue(formatWriter.closed());
+        assertTrue(outputProvider.outputCommitted());
+        assertTrue(outputProvider.outputClosed());
+        assertTrue(storageReader.inputClosed());
+    }
+
+    @Test
+    void shouldNotCommitWhenFormatReaderReportsError() {
+        final FakeStorageReader storageReader = new FakeStorageReader();
+        final FakeStorageOutputProvider outputProvider =
+                new FakeStorageOutputProvider();
+
+        final FakeFormatReader formatReader =
+                new FakeFormatReader() {
+                    @Override
+                    public FormatReadResult read() {
+                        return FormatReadResult.error(
+                                new IOException("Invalid CSV input"));
+                    }
+                };
+
+        final FakeFormatWriter formatWriter =
+                new FakeFormatWriter();
+
+        final RecordProcessingService service =
+                new RecordProcessingService(
+                        storageReader,
+                        outputProvider);
+
+        final IOException exception =
+                org.junit.jupiter.api.Assertions.assertThrows(
+                        IOException.class,
+                        () -> service.process(
+                                resource("source.csv"),
+                                resource("destination.csv"),
+                                new DeliveryPolicy(
+                                        ConflictBehavior.REPLACE),
+                                formatReader,
+                                formatWriter));
+
+        assertEquals(
+                "Format reader reported an error",
+                exception.getMessage());
+        assertTrue(formatReader.closed());
+        assertTrue(formatWriter.closed());
+        assertFalse(outputProvider.outputCommitted());
+        assertTrue(outputProvider.outputClosed());
+        assertTrue(storageReader.inputClosed());
+    }
+
+    @Test
+    void shouldNotCommitWhenFormatWriterFails() {
+        final FakeStorageReader storageReader = new FakeStorageReader();
+        final FakeStorageOutputProvider outputProvider =
+                new FakeStorageOutputProvider();
+
+        final FakeFormatReader formatReader =
+                new FakeFormatReader(record(0, "first"));
+
+        final FakeFormatWriter formatWriter =
+                new FakeFormatWriter() {
+                    @Override
+                    public void write(final Record record)
+                            throws IOException {
+                        throw new IOException("Destination write failed");
+                    }
+                };
+
+        final RecordProcessingService service =
+                new RecordProcessingService(
+                        storageReader,
+                        outputProvider);
+
+        final IOException exception =
+                org.junit.jupiter.api.Assertions.assertThrows(
+                        IOException.class,
+                        () -> service.process(
+                                resource("source.csv"),
+                                resource("destination.csv"),
+                                new DeliveryPolicy(
+                                        ConflictBehavior.REPLACE),
+                                formatReader,
+                                formatWriter));
+
+        assertEquals(
+                "Destination write failed",
+                exception.getMessage());
+        assertTrue(formatReader.closed());
+        assertTrue(formatWriter.closed());
+        assertFalse(outputProvider.outputCommitted());
+        assertTrue(outputProvider.outputClosed());
+        assertTrue(storageReader.inputClosed());
+    }
+
+    @Test
+    void shouldNotCommitWhenFormatReaderCannotOpen() {
+        final FakeStorageReader storageReader = new FakeStorageReader();
+        final FakeStorageOutputProvider outputProvider =
+                new FakeStorageOutputProvider();
+
+        final FakeFormatReader formatReader =
+                new FakeFormatReader() {
+                    @Override
+                    public void open(final InputStream inputStream)
+                            throws IOException {
+                        throw new IOException("Unable to open format reader");
+                    }
+                };
+
+        final FakeFormatWriter formatWriter =
+                new FakeFormatWriter();
+
+        final RecordProcessingService service =
+                new RecordProcessingService(
+                        storageReader,
+                        outputProvider);
+
+        final IOException exception =
+                org.junit.jupiter.api.Assertions.assertThrows(
+                        IOException.class,
+                        () -> service.process(
+                                resource("source.csv"),
+                                resource("destination.csv"),
+                                new DeliveryPolicy(
+                                        ConflictBehavior.REPLACE),
+                                formatReader,
+                                formatWriter));
+
+        assertEquals(
+                "Unable to open format reader",
+                exception.getMessage());
+        assertFalse(outputProvider.outputCommitted());
         assertTrue(outputProvider.outputClosed());
         assertTrue(storageReader.inputClosed());
     }
@@ -114,6 +246,7 @@ class RecordProcessingServiceTest {
         private final ByteArrayOutputStream outputStream =
                 new ByteArrayOutputStream();
 
+        private boolean outputCommitted;
         private boolean outputClosed;
 
         @Override
@@ -121,16 +254,42 @@ class RecordProcessingServiceTest {
                 final Resource destination,
                 final DeliveryPolicy deliveryPolicy) {
             return new StorageOutput() {
+                private boolean closed;
+
                 @Override
                 public OutputStream stream() {
+                    if (closed) {
+                        throw new IllegalStateException(
+                                "Storage output is already closed");
+                    }
+
                     return outputStream;
                 }
 
                 @Override
+                public void commit() {
+                    if (closed) {
+                        throw new IllegalStateException(
+                                "Storage output is already closed");
+                    }
+
+                    outputCommitted = true;
+                }
+
+                @Override
                 public void close() {
+                    if (closed) {
+                        return;
+                    }
+
+                    closed = true;
                     outputClosed = true;
                 }
             };
+        }
+
+        private boolean outputCommitted() {
+            return outputCommitted;
         }
 
         private boolean outputClosed() {
@@ -151,7 +310,7 @@ class RecordProcessingServiceTest {
         }
 
         @Override
-        public void open(final InputStream inputStream) {
+        public void open(final InputStream inputStream) throws IOException {
             opened = true;
         }
 
@@ -211,82 +370,5 @@ class RecordProcessingServiceTest {
         private boolean closed() {
             return closed;
         }
-    }
-
-    @Test
-    void shouldFailWhenFormatReaderReportsError() {
-        final FakeStorageReader storageReader = new FakeStorageReader();
-        final FakeStorageOutputProvider outputProvider =
-                new FakeStorageOutputProvider();
-
-        final FakeFormatReader formatReader =
-                new FakeFormatReader() {
-                    @Override
-                    public FormatReadResult read() {
-                        return FormatReadResult.error(
-                                new IOException("Invalid CSV input"));
-                    }
-                };
-
-        final FakeFormatWriter formatWriter =
-                new FakeFormatWriter();
-
-        final RecordProcessingService service =
-                new RecordProcessingService(
-                        storageReader,
-                        outputProvider);
-
-        final IOException exception = org.junit.jupiter.api.Assertions.assertThrows(
-                IOException.class,
-                () -> service.process(
-                        resource("source.csv"),
-                        resource("destination.csv"),
-                        new DeliveryPolicy(ConflictBehavior.REPLACE),
-                        formatReader,
-                        formatWriter));
-
-        assertEquals("Format reader reported an error", exception.getMessage());
-        assertTrue(formatReader.closed());
-        assertTrue(formatWriter.closed());
-        assertTrue(outputProvider.outputClosed());
-        assertTrue(storageReader.inputClosed());
-    }
-
-    @Test
-    void shouldFailWhenFormatWriterFails() {
-        final FakeStorageReader storageReader = new FakeStorageReader();
-        final FakeStorageOutputProvider outputProvider =
-                new FakeStorageOutputProvider();
-
-        final FakeFormatReader formatReader =
-                new FakeFormatReader(record(0, "first"));
-
-        final FakeFormatWriter formatWriter =
-                new FakeFormatWriter() {
-                    @Override
-                    public void write(final Record record) throws IOException {
-                        throw new IOException("Destination write failed");
-                    }
-                };
-
-        final RecordProcessingService service =
-                new RecordProcessingService(
-                        storageReader,
-                        outputProvider);
-
-        final IOException exception = org.junit.jupiter.api.Assertions.assertThrows(
-                IOException.class,
-                () -> service.process(
-                        resource("source.csv"),
-                        resource("destination.csv"),
-                        new DeliveryPolicy(ConflictBehavior.REPLACE),
-                        formatReader,
-                        formatWriter));
-
-        assertEquals("Destination write failed", exception.getMessage());
-        assertTrue(formatReader.closed());
-        assertTrue(formatWriter.closed());
-        assertTrue(outputProvider.outputClosed());
-        assertTrue(storageReader.inputClosed());
     }
 }

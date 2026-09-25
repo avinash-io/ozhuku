@@ -3,6 +3,7 @@ package io.github.avinashio.ozhuku.storage.file;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import io.github.avinashio.ozhuku.domain.delivery.ConflictBehavior;
 import io.github.avinashio.ozhuku.domain.delivery.DeliveryPolicy;
@@ -30,7 +31,9 @@ class FileStorageOutputProviderTest {
         try (StorageOutput output = provider.open(
                 destination,
                 policy(ConflictBehavior.FAIL))) {
-            output.stream().write("hello".getBytes(StandardCharsets.UTF_8));
+            output.stream().write(
+                    "hello".getBytes(StandardCharsets.UTF_8));
+            output.commit();
         }
 
         final Path target = temporaryDirectory.resolve("output.csv");
@@ -50,7 +53,9 @@ class FileStorageOutputProviderTest {
         try (StorageOutput output = provider.open(
                 resource("output.csv"),
                 policy(ConflictBehavior.REPLACE))) {
-            output.stream().write("new".getBytes(StandardCharsets.UTF_8));
+            output.stream().write(
+                    "new".getBytes(StandardCharsets.UTF_8));
+            output.commit();
         }
 
         assertEquals("new", Files.readString(target));
@@ -82,7 +87,9 @@ class FileStorageOutputProviderTest {
         try (StorageOutput output = provider.open(
                 resource("output.csv"),
                 policy(ConflictBehavior.SKIP))) {
-            output.stream().write("replacement".getBytes(StandardCharsets.UTF_8));
+            output.stream().write(
+                    "replacement".getBytes(StandardCharsets.UTF_8));
+            output.commit();
         }
 
         assertEquals("existing", Files.readString(target));
@@ -118,19 +125,49 @@ class FileStorageOutputProviderTest {
     }
 
     @Test
-    void shouldRemoveTemporaryFileAfterSuccessfulCommit() throws Exception {
+    void shouldNotCreateDestinationWhenClosedWithoutCommit()
+            throws Exception {
         final FileStorageOutputProvider provider = provider();
 
         final StorageOutput output = provider.open(
                 resource("output.csv"),
                 policy(ConflictBehavior.FAIL));
 
-        output.stream().write("partial".getBytes(StandardCharsets.UTF_8));
+        output.stream().write(
+                "partial".getBytes(StandardCharsets.UTF_8));
+
         output.close();
 
         final Path target = temporaryDirectory.resolve("output.csv");
 
-        assertEquals("partial", Files.readString(target));
+        assertFalse(Files.exists(target));
+
+        try (Stream<Path> files = Files.list(temporaryDirectory)) {
+            assertEquals(
+                    0,
+                    files.count(),
+                    "Uncommitted temporary output should be removed");
+        }
+    }
+
+    @Test
+    void shouldCommitDestinationExplicitly() throws Exception {
+        final FileStorageOutputProvider provider = provider();
+
+        final StorageOutput output = provider.open(
+                resource("output.csv"),
+                policy(ConflictBehavior.FAIL));
+
+        output.stream().write(
+                "committed".getBytes(StandardCharsets.UTF_8));
+
+        output.commit();
+
+        final Path target = temporaryDirectory.resolve("output.csv");
+
+        assertEquals("committed", Files.readString(target));
+
+        output.close();
 
         try (Stream<Path> files = Files.list(temporaryDirectory)) {
             assertEquals(
@@ -138,6 +175,41 @@ class FileStorageOutputProviderTest {
                     files.count(),
                     "Only the committed destination should remain");
         }
+    }
+
+    @Test
+    void shouldRejectSecondCommit() throws Exception {
+        final FileStorageOutputProvider provider = provider();
+
+        final StorageOutput output = provider.open(
+                resource("output.csv"),
+                policy(ConflictBehavior.FAIL));
+
+        output.stream().write(
+                "committed".getBytes(StandardCharsets.UTF_8));
+
+        output.commit();
+
+        assertThrows(
+                IllegalStateException.class,
+                output::commit);
+
+        output.close();
+    }
+
+    @Test
+    void shouldRejectCommitAfterClose() throws Exception {
+        final FileStorageOutputProvider provider = provider();
+
+        final StorageOutput output = provider.open(
+                resource("output.csv"),
+                policy(ConflictBehavior.FAIL));
+
+        output.close();
+
+        assertThrows(
+                IllegalStateException.class,
+                output::commit);
     }
 
     private FileStorageOutputProvider provider() {

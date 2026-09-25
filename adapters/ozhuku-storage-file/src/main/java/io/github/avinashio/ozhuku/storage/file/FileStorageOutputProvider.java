@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.Objects;
 
@@ -35,7 +36,8 @@ public final class FileStorageOutputProvider implements StorageOutputProvider {
                 deliveryPolicy,
                 "deliveryPolicy must not be null");
 
-        final Path target = pathResolver.resolveForWrite(destination.location());
+        final Path target =
+                pathResolver.resolveForWrite(destination.location());
 
         final ConflictBehavior conflictBehavior =
                 deliveryPolicy.conflictBehavior();
@@ -61,6 +63,7 @@ public final class FileStorageOutputProvider implements StorageOutputProvider {
         }
 
         final Path parent = target.getParent();
+
         if (parent != null) {
             Files.createDirectories(parent);
         }
@@ -106,11 +109,48 @@ public final class FileStorageOutputProvider implements StorageOutputProvider {
 
         @Override
         public OutputStream stream() {
-            if (closed) {
-                throw new IllegalStateException(
-                        "Storage output is already closed");
-            }
+            ensureOpen();
+
             return outputStream;
+        }
+
+        @Override
+        public void commit() throws IOException {
+            ensureOpen();
+
+            if (committed) {
+                throw new IllegalStateException(
+                        "Storage output has already been committed");
+            }
+
+            IOException failure = null;
+
+            try {
+                outputStream.close();
+            } catch (IOException exception) {
+                failure = exception;
+            }
+
+            if (failure == null) {
+                try {
+                    Files.move(
+                            temporaryFile,
+                            target,
+                            StandardCopyOption.ATOMIC_MOVE,
+                            StandardCopyOption.REPLACE_EXISTING);
+                    committed = true;
+                } catch (IOException exception) {
+                    failure = exception;
+                }
+            }
+
+            if (!committed) {
+                cleanupTemporaryFile(failure);
+            }
+
+            if (failure != null) {
+                throw failure;
+            }
         }
 
         @Override
@@ -129,19 +169,6 @@ public final class FileStorageOutputProvider implements StorageOutputProvider {
                 failure = exception;
             }
 
-            if (failure == null) {
-                try {
-                    Files.move(
-                            temporaryFile,
-                            target,
-                            java.nio.file.StandardCopyOption.ATOMIC_MOVE,
-                            java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-                    committed = true;
-                } catch (IOException exception) {
-                    failure = exception;
-                }
-            }
-
             if (!committed) {
                 try {
                     Files.deleteIfExists(temporaryFile);
@@ -156,6 +183,27 @@ public final class FileStorageOutputProvider implements StorageOutputProvider {
 
             if (failure != null) {
                 throw failure;
+            }
+        }
+
+        private void cleanupTemporaryFile(
+                final IOException failure)
+                throws IOException {
+            try {
+                Files.deleteIfExists(temporaryFile);
+            } catch (IOException cleanupException) {
+                if (failure == null) {
+                    throw cleanupException;
+                }
+
+                failure.addSuppressed(cleanupException);
+            }
+        }
+
+        private void ensureOpen() {
+            if (closed) {
+                throw new IllegalStateException(
+                        "Storage output is already closed");
             }
         }
     }
@@ -173,6 +221,14 @@ public final class FileStorageOutputProvider implements StorageOutputProvider {
             }
 
             return OutputStream.nullOutputStream();
+        }
+
+        @Override
+        public void commit() {
+            if (closed) {
+                throw new IllegalStateException(
+                        "Storage output is already closed");
+            }
         }
 
         @Override

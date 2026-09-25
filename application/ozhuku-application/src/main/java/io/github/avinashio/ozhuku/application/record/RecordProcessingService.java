@@ -36,9 +36,12 @@ public final class RecordProcessingService {
             final FormatReader formatReader,
             final FormatWriter formatWriter)
             throws IOException {
-
-        Objects.requireNonNull(source, "source must not be null");
-        Objects.requireNonNull(destination, "destination must not be null");
+        Objects.requireNonNull(
+                source,
+                "source must not be null");
+        Objects.requireNonNull(
+                destination,
+                "destination must not be null");
         Objects.requireNonNull(
                 deliveryPolicy,
                 "deliveryPolicy must not be null");
@@ -50,9 +53,10 @@ public final class RecordProcessingService {
                 "formatWriter must not be null");
 
         try (InputStream input = storageReader.open(source);
-             StorageOutput output = storageOutputProvider.open(
-                     destination,
-                     deliveryPolicy)) {
+             StorageOutput output =
+                     storageOutputProvider.open(
+                             destination,
+                             deliveryPolicy)) {
 
             formatReader.open(input);
             formatWriter.open(output.stream());
@@ -63,6 +67,8 @@ public final class RecordProcessingService {
                 formatWriter.close();
                 formatReader.close();
             }
+
+            output.commit();
         }
     }
 
@@ -70,7 +76,6 @@ public final class RecordProcessingService {
             final FormatReader formatReader,
             final FormatWriter formatWriter)
             throws IOException {
-
         while (true) {
             final FormatReadResult result = formatReader.read();
 
