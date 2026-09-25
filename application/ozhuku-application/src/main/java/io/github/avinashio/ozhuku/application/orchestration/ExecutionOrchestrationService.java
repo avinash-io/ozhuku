@@ -36,8 +36,13 @@ public final class ExecutionOrchestrationService {
 
         executionLifecycleService.start(executionId);
 
-        return flowExecutionLifecycleService.start(
-                executionId,
-                flowId);
+        try {
+            return flowExecutionLifecycleService.start(
+                    executionId,
+                    flowId);
+        } catch (RuntimeException exception) {
+            executionLifecycleService.fail(executionId);
+            throw exception;
+        }
     }
 }

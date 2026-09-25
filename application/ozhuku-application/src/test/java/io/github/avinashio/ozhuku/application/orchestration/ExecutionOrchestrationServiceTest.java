@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import java.util.Optional;
 
 class ExecutionOrchestrationServiceTest {
 
@@ -182,7 +183,7 @@ class ExecutionOrchestrationServiceTest {
     }
 
     @Test
-    void startExecutionShouldFailWhenFlowExecutionDoesNotExist() {
+    void startExecutionShouldFailExecutionWhenFlowExecutionDoesNotExist() {
         final Execution execution =
                 new Execution(
                         createExecutionReference());
@@ -201,10 +202,19 @@ class ExecutionOrchestrationServiceTest {
                         .orElseThrow();
 
         assertEquals(
-                ExecutionStatus.RUNNING,
+                ExecutionStatus.FAILED,
                 savedExecution.status());
-    }
 
+        assertEquals(
+                FIXED_TIME,
+                savedExecution.completedAt());
+
+        assertEquals(
+                Optional.empty(),
+                flowExecutionRepository.findById(
+                        EXECUTION_ID,
+                        FLOW_ID));
+    }
     @Test
     void startExecutionShouldRejectNullExecutionId() {
         assertThrows(
@@ -305,5 +315,66 @@ class ExecutionOrchestrationServiceTest {
 
             return executionId + ":" + flowId;
         }
+    }
+
+    @Test
+    void startExecutionShouldFailExecutionWhenFlowStartFails() {
+        final Execution execution =
+                new Execution(
+                        createExecutionReference());
+
+        final FlowExecution flowExecution =
+                new FlowExecution(
+                        EXECUTION_ID,
+                        FLOW_ID);
+
+        executionRepository.save(execution);
+        flowExecutionRepository.save(flowExecution);
+
+        final ExecutionOrchestrationService failingService =
+                new ExecutionOrchestrationService(
+                        new ExecutionLifecycleService(
+                                executionRepository,
+                                Clock.fixed(
+                                        FIXED_TIME,
+                                        ZoneOffset.UTC)),
+                        new FlowExecutionLifecycleService(
+                                new FlowExecutionRepository() {
+                                    @Override
+                                    public Optional<FlowExecution> findById(
+                                            final ExecutionId executionId,
+                                            final FlowId flowId) {
+                                        return Optional.of(flowExecution);
+                                    }
+
+                                    @Override
+                                    public void save(
+                                            final FlowExecution execution) {
+                                        throw new IllegalStateException(
+                                                "Flow execution start failed");
+                                    }
+                                },
+                                Clock.fixed(
+                                        FIXED_TIME,
+                                        ZoneOffset.UTC)));
+
+        assertThrows(
+                IllegalStateException.class,
+                () -> failingService.startExecution(
+                        EXECUTION_ID,
+                        FLOW_ID));
+
+        final Execution savedExecution =
+                executionRepository
+                        .findById(EXECUTION_ID)
+                        .orElseThrow();
+
+        assertEquals(
+                ExecutionStatus.FAILED,
+                savedExecution.status());
+
+        assertEquals(
+                FIXED_TIME,
+                savedExecution.completedAt());
     }
 }
