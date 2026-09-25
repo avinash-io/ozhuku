@@ -45,4 +45,67 @@ public final class ExecutionOrchestrationService {
             throw exception;
         }
     }
+
+    public FlowExecution completeExecution(
+            final ExecutionId executionId,
+            final FlowId flowId) {
+
+        Objects.requireNonNull(
+                executionId,
+                "executionId must not be null");
+        Objects.requireNonNull(
+                flowId,
+                "flowId must not be null");
+
+        final FlowExecution completedFlowExecution =
+                flowExecutionLifecycleService.complete(
+                        executionId,
+                        flowId);
+
+        executionLifecycleService.complete(executionId);
+
+        return completedFlowExecution;
+    }
+
+    public FlowExecution failExecution(
+            final ExecutionId executionId,
+            final FlowId flowId) {
+
+        Objects.requireNonNull(
+                executionId,
+                "executionId must not be null");
+        Objects.requireNonNull(
+                flowId,
+                "flowId must not be null");
+
+        final FlowExecution failedFlowExecution =
+                flowExecutionLifecycleService.fail(
+                        executionId,
+                        flowId);
+
+        executionLifecycleService.fail(executionId);
+
+        return failedFlowExecution;
+    }
+
+    public FlowExecution cancelExecution(
+            final ExecutionId executionId,
+            final FlowId flowId) {
+
+        Objects.requireNonNull(
+                executionId,
+                "executionId must not be null");
+        Objects.requireNonNull(
+                flowId,
+                "flowId must not be null");
+
+        final FlowExecution cancelledFlowExecution =
+                flowExecutionLifecycleService.cancel(
+                        executionId,
+                        flowId);
+
+        executionLifecycleService.cancel(executionId);
+
+        return cancelledFlowExecution;
+    }
 }
