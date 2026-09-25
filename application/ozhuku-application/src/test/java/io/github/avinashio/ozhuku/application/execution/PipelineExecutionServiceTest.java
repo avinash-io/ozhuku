@@ -6,8 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import io.github.avinashio.ozhuku.application.initialization.ExecutionInitializationService;
 import io.github.avinashio.ozhuku.application.orchestration.ExecutionOrchestrationService;
 import io.github.avinashio.ozhuku.application.processing.ExecutionProcessingService;
-import io.github.avinashio.ozhuku.application.processing.RecordProcessingRequest;
-import io.github.avinashio.ozhuku.application.processing.ResourceTransferRequest;
 import io.github.avinashio.ozhuku.application.record.RecordProcessingService;
 import io.github.avinashio.ozhuku.application.transfer.ResourceTransferService;
 import io.github.avinashio.ozhuku.domain.delivery.ConflictBehavior;
@@ -41,7 +39,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-class ExecutionRunServiceTest {
+class PipelineExecutionServiceTest {
 
     private static final ExecutionId EXECUTION_ID =
             new ExecutionId("execution-1");
@@ -49,21 +47,15 @@ class ExecutionRunServiceTest {
     private static final FlowId FLOW_ID =
             new FlowId("flow-1");
 
-    private static final ResourceId SOURCE_RESOURCE_ID =
-            new ResourceId("source");
+    private static final PipelineId PIPELINE_ID =
+            new PipelineId("pipeline-1");
 
-    private static final ResourceId DESTINATION_RESOURCE_ID =
-            new ResourceId("destination");
+    private static final PipelineVersion PIPELINE_VERSION =
+            new PipelineVersion(1L);
 
     private ExecutionRepository executionRepository;
 
-    private FlowExecutionRepository flowExecutionRepository;
-
-    private SourceExecutionRepository sourceExecutionRepository;
-
-    private DestinationExecutionRepository destinationExecutionRepository;
-
-    private ExecutionRunService service;
+    private PipelineExecutionService service;
 
     @BeforeEach
     void setUp() {
@@ -71,13 +63,14 @@ class ExecutionRunServiceTest {
         executionRepository =
                 new InMemoryExecutionRepository();
 
-        flowExecutionRepository =
+        final FlowExecutionRepository flowExecutionRepository =
                 new InMemoryFlowExecutionRepository();
 
-        sourceExecutionRepository =
+        final SourceExecutionRepository sourceExecutionRepository =
                 new InMemorySourceExecutionRepository();
 
-        destinationExecutionRepository =
+        final DestinationExecutionRepository
+                destinationExecutionRepository =
                 new InMemoryDestinationExecutionRepository();
 
         final ExecutionInitializationService initializationService =
@@ -87,23 +80,74 @@ class ExecutionRunServiceTest {
                         sourceExecutionRepository,
                         destinationExecutionRepository);
 
-        final ExecutionProcessingCoordinator processingCoordinator =
-                createProcessingCoordinator();
+        final ExecutionProcessingCoordinator
+                processingCoordinator =
+                new ExecutionProcessingCoordinator(
+                        new ExecutionOrchestrationService(
+                                new ExecutionLifecycleService(
+                                        executionRepository,
+                                        java.time.Clock.systemUTC()),
+                                new FlowExecutionLifecycleService(
+                                        flowExecutionRepository,
+                                        java.time.Clock.systemUTC()),
+                                new SourceExecutionLifecycleService(
+                                        sourceExecutionRepository,
+                                        java.time.Clock.systemUTC()),
+                                new DestinationExecutionLifecycleService(
+                                        destinationExecutionRepository,
+                                        java.time.Clock.systemUTC())),
+                        new ExecutionProcessingService(
+                                new ResourceTransferService(
+                                        resource ->
+                                                new java.io.ByteArrayInputStream(
+                                                        "test".getBytes()),
+                                        (destination, content, conflictBehavior) ->
+                                                content.transferTo(
+                                                        OutputStream
+                                                                .nullOutputStream())),
+                                new RecordProcessingService(
+                                        resource ->
+                                                new java.io.ByteArrayInputStream(
+                                                        "test".getBytes()),
+                                        (destination, deliveryPolicy) ->
+                                                new StorageOutput() {
 
-        service =
+                                                    @Override
+                                                    public OutputStream stream() {
+                                                        return OutputStream
+                                                                .nullOutputStream();
+                                                    }
+
+                                                    @Override
+                                                    public void commit() {
+                                                    }
+
+                                                    @Override
+                                                    public void close() {
+                                                    }
+                                                })),
+                        new ExecutionResourceValidator(
+                                sourceExecutionRepository,
+                                destinationExecutionRepository));
+
+        final ExecutionRunService executionRunService =
                 new ExecutionRunService(
                         initializationService,
                         processingCoordinator);
+
+        service =
+                new PipelineExecutionService(
+                        executionRunService);
     }
 
     @Test
-    void shouldRunResourceTransferUsingPipelinePlan()
+    void shouldExecuteResourceTransferPipeline()
             throws IOException {
 
         final PipelinePlan pipelinePlan =
                 pipelinePlan(FlowMode.RESOURCE_TRANSFER);
 
-        service.runResourceTransfer(
+        service.execute(
                 executionReference(),
                 pipelinePlan);
 
@@ -119,22 +163,57 @@ class ExecutionRunServiceTest {
     }
 
     @Test
-    void shouldRunRecordProcessingUsingPipelinePlan()
+    void shouldRejectRecordProcessingThroughExecute()
             throws IOException {
 
         final PipelinePlan pipelinePlan =
                 pipelinePlan(FlowMode.RECORD_PROCESSING);
 
-        final TestFormatReader formatReader =
-                new TestFormatReader();
+        final IllegalArgumentException exception =
+                assertThrows(
+                        IllegalArgumentException.class,
+                        () -> service.execute(
+                                executionReference(),
+                                pipelinePlan));
+
+        assertEquals(
+                "RECORD_PROCESSING requires format reader and writer",
+                exception.getMessage());
+    }
+
+    @Test
+    void shouldRejectUnsupportedResourceProcessing()
+            throws IOException {
+
+        final PipelinePlan pipelinePlan =
+                pipelinePlan(FlowMode.RESOURCE_PROCESSING);
+
+        final UnsupportedOperationException exception =
+                assertThrows(
+                        UnsupportedOperationException.class,
+                        () -> service.execute(
+                                executionReference(),
+                                pipelinePlan));
+
+        assertEquals(
+                "RESOURCE_PROCESSING execution is not implemented yet",
+                exception.getMessage());
+    }
+
+    @Test
+    void shouldExecuteRecordProcessingPipeline()
+            throws IOException {
+
+        final PipelinePlan pipelinePlan =
+                pipelinePlan(FlowMode.RECORD_PROCESSING);
 
         final TestFormatWriter formatWriter =
                 new TestFormatWriter();
 
-        service.runRecordProcessing(
+        service.executeRecordProcessing(
                 executionReference(),
                 pipelinePlan,
-                formatReader,
+                new TestFormatReader(),
                 formatWriter);
 
         final Execution execution =
@@ -153,38 +232,54 @@ class ExecutionRunServiceTest {
     }
 
     @Test
-    void shouldRejectNullPipelinePlanForResourceTransfer() {
+    void shouldRejectWrongFlowModeForRecordProcessing()
+            throws IOException {
+
+        final PipelinePlan pipelinePlan =
+                pipelinePlan(FlowMode.RESOURCE_TRANSFER);
+
+        final IllegalArgumentException exception =
+                assertThrows(
+                        IllegalArgumentException.class,
+                        () -> service.executeRecordProcessing(
+                                executionReference(),
+                                pipelinePlan,
+                                new TestFormatReader(),
+                                new TestFormatWriter()));
+
+        assertEquals(
+                "Pipeline plan flow mode must be RECORD_PROCESSING",
+                exception.getMessage());
+    }
+
+    @Test
+    void shouldRejectNullExecutionReference() {
 
         assertThrows(
                 NullPointerException.class,
-                () -> service.runResourceTransfer(
+                () -> service.execute(
+                        null,
+                        pipelinePlan(FlowMode.RESOURCE_TRANSFER)));
+    }
+
+    @Test
+    void shouldRejectNullPipelinePlan() {
+
+        assertThrows(
+                NullPointerException.class,
+                () -> service.execute(
                         executionReference(),
                         null));
     }
 
     @Test
-    void shouldRejectNullPipelinePlanForRecordProcessing() {
-
-        assertThrows(
-                NullPointerException.class,
-                () -> service.runRecordProcessing(
-                        executionReference(),
-                        null,
-                        new TestFormatReader(),
-                        new TestFormatWriter()));
-    }
-
-    @Test
     void shouldRejectNullFormatReader() {
 
-        final PipelinePlan pipelinePlan =
-                pipelinePlan(FlowMode.RECORD_PROCESSING);
-
         assertThrows(
                 NullPointerException.class,
-                () -> service.runRecordProcessing(
+                () -> service.executeRecordProcessing(
                         executionReference(),
-                        pipelinePlan,
+                        pipelinePlan(FlowMode.RECORD_PROCESSING),
                         null,
                         new TestFormatWriter()));
     }
@@ -192,68 +287,13 @@ class ExecutionRunServiceTest {
     @Test
     void shouldRejectNullFormatWriter() {
 
-        final PipelinePlan pipelinePlan =
-                pipelinePlan(FlowMode.RECORD_PROCESSING);
-
         assertThrows(
                 NullPointerException.class,
-                () -> service.runRecordProcessing(
+                () -> service.executeRecordProcessing(
                         executionReference(),
-                        pipelinePlan,
+                        pipelinePlan(FlowMode.RECORD_PROCESSING),
                         new TestFormatReader(),
                         null));
-    }
-
-    private ExecutionProcessingCoordinator
-    createProcessingCoordinator() {
-
-        return new ExecutionProcessingCoordinator(
-                new ExecutionOrchestrationService(
-                        new ExecutionLifecycleService(
-                                executionRepository,
-                                java.time.Clock.systemUTC()),
-                        new FlowExecutionLifecycleService(
-                                flowExecutionRepository,
-                                java.time.Clock.systemUTC()),
-                        new SourceExecutionLifecycleService(
-                                sourceExecutionRepository,
-                                java.time.Clock.systemUTC()),
-                        new DestinationExecutionLifecycleService(
-                                destinationExecutionRepository,
-                                java.time.Clock.systemUTC())),
-                new ExecutionProcessingService(
-                        new ResourceTransferService(
-                                resource ->
-                                        new java.io.ByteArrayInputStream(
-                                                "test".getBytes()),
-                                (destination, content, conflictBehavior) ->
-                                        content.transferTo(
-                                                java.io.OutputStream
-                                                        .nullOutputStream())),
-                        new RecordProcessingService(
-                                resource ->
-                                        new java.io.ByteArrayInputStream(
-                                                "test".getBytes()),
-                                (destination, deliveryPolicy) ->
-                                        new StorageOutput() {
-
-                                            @Override
-                                            public OutputStream stream() {
-                                                return OutputStream
-                                                        .nullOutputStream();
-                                            }
-
-                                            @Override
-                                            public void commit() {
-                                            }
-
-                                            @Override
-                                            public void close() {
-                                            }
-                                        })),
-                new ExecutionResourceValidator(
-                        sourceExecutionRepository,
-                        destinationExecutionRepository));
     }
 
     private static PipelinePlan pipelinePlan(
@@ -261,8 +301,8 @@ class ExecutionRunServiceTest {
 
         return new PipelinePlan(
                 new PipelineDefinition(
-                        new PipelineId("pipeline-1"),
-                        new PipelineVersion(1L),
+                        PIPELINE_ID,
+                        PIPELINE_VERSION,
                         "Test pipeline"),
                 new Flow(
                         FLOW_ID,
@@ -287,8 +327,8 @@ class ExecutionRunServiceTest {
 
         return new ExecutionReference(
                 EXECUTION_ID,
-                new PipelineId("pipeline-1"),
-                new PipelineVersion(1L));
+                PIPELINE_ID,
+                PIPELINE_VERSION);
     }
 
     private static final class TestFormatReader
