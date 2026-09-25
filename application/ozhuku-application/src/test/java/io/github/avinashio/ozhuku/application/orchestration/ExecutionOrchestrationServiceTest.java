@@ -1,19 +1,32 @@
 package io.github.avinashio.ozhuku.application.orchestration;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import io.github.avinashio.ozhuku.application.execution.DestinationExecutionLifecycleService;
 import io.github.avinashio.ozhuku.application.execution.ExecutionLifecycleService;
 import io.github.avinashio.ozhuku.application.execution.FlowExecutionLifecycleService;
+import io.github.avinashio.ozhuku.application.execution.SourceExecutionLifecycleService;
+import io.github.avinashio.ozhuku.domain.execution.DestinationExecution;
 import io.github.avinashio.ozhuku.domain.execution.Execution;
-import io.github.avinashio.ozhuku.domain.execution.ExecutionStatus;
 import io.github.avinashio.ozhuku.domain.execution.FlowExecution;
+import io.github.avinashio.ozhuku.domain.execution.SourceExecution;
+import io.github.avinashio.ozhuku.domain.execution.ExecutionStatus;
 import io.github.avinashio.ozhuku.domain.execution.FlowExecutionStatus;
+import io.github.avinashio.ozhuku.domain.execution.SourceExecutionStatus;
+import io.github.avinashio.ozhuku.domain.execution.DestinationExecutionStatus;
 import io.github.avinashio.ozhuku.domain.identity.ExecutionId;
 import io.github.avinashio.ozhuku.domain.identity.FlowId;
+import io.github.avinashio.ozhuku.domain.identity.PipelineId;
+import io.github.avinashio.ozhuku.domain.identity.PipelineVersion;
+import io.github.avinashio.ozhuku.domain.identity.ResourceId;
+import io.github.avinashio.ozhuku.domain.execution.ExecutionReference;
+import io.github.avinashio.ozhuku.domain.execution.SourceExecutionReference;
+import io.github.avinashio.ozhuku.domain.execution.DestinationExecutionReference;
+import io.github.avinashio.ozhuku.persistence.DestinationExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.ExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.FlowExecutionRepository;
+import io.github.avinashio.ozhuku.persistence.SourceExecutionRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -26,7 +39,7 @@ import org.junit.jupiter.api.Test;
 class ExecutionOrchestrationServiceTest {
 
     private static final Instant FIXED_TIME =
-            Instant.parse("2026-09-25T10:15:30Z");
+            Instant.parse("2026-01-01T00:00:00Z");
 
     private static final ExecutionId EXECUTION_ID =
             new ExecutionId("execution-1");
@@ -34,22 +47,29 @@ class ExecutionOrchestrationServiceTest {
     private static final FlowId FLOW_ID =
             new FlowId("flow-1");
 
-    private FakeExecutionRepository executionRepository;
-    private FakeFlowExecutionRepository flowExecutionRepository;
+    private static final ResourceId SOURCE_RESOURCE_ID =
+            new ResourceId("source-1");
+
+    private static final ResourceId DESTINATION_RESOURCE_ID =
+            new ResourceId("destination-1");
+
+    private ExecutionRepository executionRepository;
+    private FlowExecutionRepository flowExecutionRepository;
+    private SourceExecutionRepository sourceExecutionRepository;
+    private DestinationExecutionRepository destinationExecutionRepository;
+
     private ExecutionOrchestrationService service;
 
     @BeforeEach
     void setUp() {
-        executionRepository =
-                new FakeExecutionRepository();
-
-        flowExecutionRepository =
-                new FakeFlowExecutionRepository();
+        executionRepository = new FakeExecutionRepository();
+        flowExecutionRepository = new FakeFlowExecutionRepository();
+        sourceExecutionRepository = new FakeSourceExecutionRepository();
+        destinationExecutionRepository =
+                new FakeDestinationExecutionRepository();
 
         final Clock clock =
-                Clock.fixed(
-                        FIXED_TIME,
-                        ZoneOffset.UTC);
+                Clock.fixed(FIXED_TIME, ZoneOffset.UTC);
 
         final ExecutionLifecycleService executionLifecycleService =
                 new ExecutionLifecycleService(
@@ -61,539 +81,194 @@ class ExecutionOrchestrationServiceTest {
                         flowExecutionRepository,
                         clock);
 
+        final SourceExecutionLifecycleService sourceExecutionLifecycleService =
+                new SourceExecutionLifecycleService(
+                        sourceExecutionRepository,
+                        clock);
+
+        final DestinationExecutionLifecycleService
+                destinationExecutionLifecycleService =
+                new DestinationExecutionLifecycleService(
+                        destinationExecutionRepository,
+                        clock);
+
         service = new ExecutionOrchestrationService(
                 executionLifecycleService,
-                flowExecutionLifecycleService);
+                flowExecutionLifecycleService,
+                sourceExecutionLifecycleService,
+                destinationExecutionLifecycleService);
     }
 
     @Test
-    void startExecutionShouldStartExecutionBeforeFlowExecution() {
-        final Execution execution =
-                new Execution(
-                        createExecutionReference());
+    void startExecutionStartsAllExecutionLevels() {
+        savePendingExecutions();
 
-        final FlowExecution flowExecution =
-                new FlowExecution(
-                        EXECUTION_ID,
-                        FLOW_ID);
-
-        executionRepository.save(execution);
-        flowExecutionRepository.save(flowExecution);
-
-        final FlowExecution result =
-                service.startExecution(
-                        EXECUTION_ID,
-                        FLOW_ID);
-
-        assertNotNull(result);
-
-        assertEquals(
-                FlowExecutionStatus.RUNNING,
-                result.status());
-
-        assertEquals(
-                FIXED_TIME,
-                result.startedAt());
-
-        final Execution savedExecution =
-                executionRepository
-                        .findById(EXECUTION_ID)
-                        .orElseThrow();
+        service.startExecution(
+                EXECUTION_ID,
+                FLOW_ID,
+                SOURCE_RESOURCE_ID,
+                DESTINATION_RESOURCE_ID);
 
         assertEquals(
                 ExecutionStatus.RUNNING,
-                savedExecution.status());
-
-        assertEquals(
-                FIXED_TIME,
-                savedExecution.startedAt());
-
-        final FlowExecution savedFlowExecution =
-                flowExecutionRepository
-                        .findById(
-                                EXECUTION_ID,
-                                FLOW_ID)
-                        .orElseThrow();
+                execution().status());
 
         assertEquals(
                 FlowExecutionStatus.RUNNING,
-                savedFlowExecution.status());
+                flowExecution().status());
 
         assertEquals(
-                FIXED_TIME,
-                savedFlowExecution.startedAt());
+                SourceExecutionStatus.RUNNING,
+                sourceExecution().status());
+
+        assertEquals(
+                DestinationExecutionStatus.RUNNING,
+                destinationExecution().status());
     }
 
     @Test
-    void startExecutionShouldReturnStartedFlowExecution() {
-        final Execution execution =
-                new Execution(
-                        createExecutionReference());
-
-        final FlowExecution flowExecution =
-                new FlowExecution(
-                        EXECUTION_ID,
-                        FLOW_ID);
-
-        executionRepository.save(execution);
-        flowExecutionRepository.save(flowExecution);
-
-        final FlowExecution result =
-                service.startExecution(
-                        EXECUTION_ID,
-                        FLOW_ID);
-
-        assertEquals(
-                flowExecution.executionId(),
-                result.executionId());
-
-        assertEquals(
-                flowExecution.flowId(),
-                result.flowId());
-
-        assertEquals(
-                FlowExecutionStatus.RUNNING,
-                result.status());
-    }
-
-    @Test
-    void startExecutionShouldFailWhenExecutionDoesNotExist() {
-        final FlowExecution flowExecution =
-                new FlowExecution(
-                        EXECUTION_ID,
-                        FLOW_ID);
-
-        flowExecutionRepository.save(flowExecution);
-
-        assertThrows(
-                IllegalStateException.class,
-                () -> service.startExecution(
-                        EXECUTION_ID,
-                        FLOW_ID));
-
-        assertEquals(
-                FlowExecutionStatus.PENDING,
-                flowExecutionRepository
-                        .findById(
-                                EXECUTION_ID,
-                                FLOW_ID)
-                        .orElseThrow()
-                        .status());
-    }
-
-    @Test
-    void startExecutionShouldFailExecutionWhenFlowExecutionDoesNotExist() {
-        final Execution execution =
-                new Execution(
-                        createExecutionReference());
-
-        executionRepository.save(execution);
-
-        assertThrows(
-                IllegalStateException.class,
-                () -> service.startExecution(
-                        EXECUTION_ID,
-                        FLOW_ID));
-
-        final Execution savedExecution =
-                executionRepository
-                        .findById(EXECUTION_ID)
-                        .orElseThrow();
-
-        assertEquals(
-                ExecutionStatus.FAILED,
-                savedExecution.status());
-
-        assertEquals(
-                FIXED_TIME,
-                savedExecution.completedAt());
-
-        assertEquals(
-                Optional.empty(),
-                flowExecutionRepository.findById(
-                        EXECUTION_ID,
-                        FLOW_ID));
-    }
-
-    @Test
-    void startExecutionShouldRejectNullExecutionId() {
-        assertThrows(
-                NullPointerException.class,
-                () -> service.startExecution(
-                        null,
-                        FLOW_ID));
-
-        assertEquals(
-                0,
-                executionRepository.saveCount);
-    }
-
-    @Test
-    void startExecutionShouldRejectNullFlowId() {
-        assertThrows(
-                NullPointerException.class,
-                () -> service.startExecution(
-                        EXECUTION_ID,
-                        null));
-
-        assertEquals(
-                0,
-                executionRepository.saveCount);
-    }
-
-    @Test
-    void startExecutionShouldFailExecutionWhenFlowStartFails() {
-        final Execution execution =
-                new Execution(
-                        createExecutionReference());
-
-        final FlowExecution flowExecution =
-                new FlowExecution(
-                        EXECUTION_ID,
-                        FLOW_ID);
-
-        executionRepository.save(execution);
-        flowExecutionRepository.save(flowExecution);
-
-        final ExecutionOrchestrationService failingService =
-                new ExecutionOrchestrationService(
-                        new ExecutionLifecycleService(
-                                executionRepository,
-                                Clock.fixed(
-                                        FIXED_TIME,
-                                        ZoneOffset.UTC)),
-                        new FlowExecutionLifecycleService(
-                                new FlowExecutionRepository() {
-                                    @Override
-                                    public Optional<FlowExecution> findById(
-                                            final ExecutionId executionId,
-                                            final FlowId flowId) {
-                                        return Optional.of(flowExecution);
-                                    }
-
-                                    @Override
-                                    public void save(
-                                            final FlowExecution execution) {
-                                        throw new IllegalStateException(
-                                                "Flow execution start failed");
-                                    }
-                                },
-                                Clock.fixed(
-                                        FIXED_TIME,
-                                        ZoneOffset.UTC)));
-
-        assertThrows(
-                IllegalStateException.class,
-                () -> failingService.startExecution(
-                        EXECUTION_ID,
-                        FLOW_ID));
-
-        final Execution savedExecution =
-                executionRepository
-                        .findById(EXECUTION_ID)
-                        .orElseThrow();
-
-        assertEquals(
-                ExecutionStatus.FAILED,
-                savedExecution.status());
-
-        assertEquals(
-                FIXED_TIME,
-                savedExecution.completedAt());
-    }
-
-    @Test
-    void completeExecutionShouldCompleteFlowBeforeExecution() {
-        final Execution execution =
-                new Execution(
-                        createExecutionReference());
-
-        final FlowExecution flowExecution =
-                new FlowExecution(
-                        EXECUTION_ID,
-                        FLOW_ID);
-
-        executionRepository.save(execution);
-        flowExecutionRepository.save(flowExecution);
+    void completeExecutionCompletesAllExecutionLevels() {
+        savePendingExecutions();
 
         service.startExecution(
                 EXECUTION_ID,
-                FLOW_ID);
-
-        final FlowExecution result =
-                service.completeExecution(
-                        EXECUTION_ID,
-                        FLOW_ID);
-
-        assertNotNull(result);
-
-        assertEquals(
-                FlowExecutionStatus.COMPLETED,
-                result.status());
-
-        assertEquals(
-                FIXED_TIME,
-                result.completedAt());
-
-        final Execution savedExecution =
-                executionRepository
-                        .findById(EXECUTION_ID)
-                        .orElseThrow();
-
-        assertEquals(
-                ExecutionStatus.COMPLETED,
-                savedExecution.status());
-
-        assertEquals(
-                FIXED_TIME,
-                savedExecution.completedAt());
-
-        final FlowExecution savedFlowExecution =
-                flowExecutionRepository
-                        .findById(
-                                EXECUTION_ID,
-                                FLOW_ID)
-                        .orElseThrow();
-
-        assertEquals(
-                FlowExecutionStatus.COMPLETED,
-                savedFlowExecution.status());
-    }
-
-    @Test
-    void completeExecutionShouldFailWhenFlowIsNotRunning() {
-        final Execution execution =
-                new Execution(
-                        createExecutionReference());
-
-        final FlowExecution flowExecution =
-                new FlowExecution(
-                        EXECUTION_ID,
-                        FLOW_ID);
-
-        executionRepository.save(execution);
-        flowExecutionRepository.save(flowExecution);
-
-        service.startExecution(
-                EXECUTION_ID,
-                FLOW_ID);
+                FLOW_ID,
+                SOURCE_RESOURCE_ID,
+                DESTINATION_RESOURCE_ID);
 
         service.completeExecution(
                 EXECUTION_ID,
-                FLOW_ID);
+                FLOW_ID,
+                SOURCE_RESOURCE_ID,
+                DESTINATION_RESOURCE_ID);
 
-        assertThrows(
-                IllegalStateException.class,
-                () -> service.completeExecution(
-                        EXECUTION_ID,
-                        FLOW_ID));
+        assertEquals(
+                ExecutionStatus.COMPLETED,
+                execution().status());
+
+        assertEquals(
+                FlowExecutionStatus.COMPLETED,
+                flowExecution().status());
+
+        assertEquals(
+                SourceExecutionStatus.COMPLETED,
+                sourceExecution().status());
+
+        assertEquals(
+                DestinationExecutionStatus.COMPLETED,
+                destinationExecution().status());
     }
 
     @Test
-    void failExecutionShouldFailFlowBeforeExecution() {
-        final Execution execution =
-                new Execution(
-                        createExecutionReference());
-
-        final FlowExecution flowExecution =
-                new FlowExecution(
-                        EXECUTION_ID,
-                        FLOW_ID);
-
-        executionRepository.save(execution);
-        flowExecutionRepository.save(flowExecution);
+    void failExecutionFailsAllExecutionLevels() {
+        savePendingExecutions();
 
         service.startExecution(
                 EXECUTION_ID,
-                FLOW_ID);
+                FLOW_ID,
+                SOURCE_RESOURCE_ID,
+                DESTINATION_RESOURCE_ID);
 
-        final FlowExecution result =
-                service.failExecution(
-                        EXECUTION_ID,
-                        FLOW_ID);
-
-        assertNotNull(result);
-
-        assertEquals(
-                FlowExecutionStatus.FAILED,
-                result.status());
-
-        assertEquals(
-                FIXED_TIME,
-                result.completedAt());
-
-        final Execution savedExecution =
-                executionRepository
-                        .findById(EXECUTION_ID)
-                        .orElseThrow();
+        service.failExecution(
+                EXECUTION_ID,
+                FLOW_ID,
+                SOURCE_RESOURCE_ID,
+                DESTINATION_RESOURCE_ID);
 
         assertEquals(
                 ExecutionStatus.FAILED,
-                savedExecution.status());
+                execution().status());
 
         assertEquals(
-                FIXED_TIME,
-                savedExecution.completedAt());
+                FlowExecutionStatus.FAILED,
+                flowExecution().status());
+
+        assertEquals(
+                SourceExecutionStatus.FAILED,
+                sourceExecution().status());
+
+        assertEquals(
+                DestinationExecutionStatus.FAILED,
+                destinationExecution().status());
     }
 
     @Test
-    void failExecutionShouldRejectFlowThatIsNotRunning() {
-        final Execution execution =
+    void cancelExecutionCancelsAllExecutionLevels() {
+        savePendingExecutions();
+
+        service.cancelExecution(
+                EXECUTION_ID,
+                FLOW_ID,
+                SOURCE_RESOURCE_ID,
+                DESTINATION_RESOURCE_ID);
+
+        assertEquals(
+                ExecutionStatus.CANCELLED,
+                execution().status());
+
+        assertEquals(
+                FlowExecutionStatus.CANCELLED,
+                flowExecution().status());
+
+        assertEquals(
+                SourceExecutionStatus.CANCELLED,
+                sourceExecution().status());
+
+        assertEquals(
+                DestinationExecutionStatus.CANCELLED,
+                destinationExecution().status());
+    }
+
+    private void savePendingExecutions() {
+        executionRepository.save(
                 new Execution(
-                        createExecutionReference());
+                        new ExecutionReference(
+                                EXECUTION_ID,
+                                new PipelineId("pipeline-1"),
+                                new PipelineVersion(1))));
 
-        final FlowExecution flowExecution =
+        flowExecutionRepository.save(
                 new FlowExecution(
-                        EXECUTION_ID,
-                        FLOW_ID);
-
-        executionRepository.save(execution);
-        flowExecutionRepository.save(flowExecution);
-
-        assertThrows(
-                IllegalStateException.class,
-                () -> service.failExecution(
                         EXECUTION_ID,
                         FLOW_ID));
 
-        assertEquals(
-                ExecutionStatus.PENDING,
-                executionRepository
-                        .findById(EXECUTION_ID)
-                        .orElseThrow()
-                        .status());
-
-        assertEquals(
-                FlowExecutionStatus.PENDING,
-                flowExecutionRepository
-                        .findById(
+        sourceExecutionRepository.save(
+                new SourceExecution(
+                        new SourceExecutionReference(
                                 EXECUTION_ID,
-                                FLOW_ID)
-                        .orElseThrow()
-                        .status());
+                                SOURCE_RESOURCE_ID)));
+
+        destinationExecutionRepository.save(
+                new DestinationExecution(
+                        new DestinationExecutionReference(
+                                EXECUTION_ID,
+                                DESTINATION_RESOURCE_ID)));
     }
 
-    @Test
-    void cancelExecutionShouldCancelFlowBeforeExecution() {
-        final Execution execution =
-                new Execution(
-                        createExecutionReference());
-
-        final FlowExecution flowExecution =
-                new FlowExecution(
-                        EXECUTION_ID,
-                        FLOW_ID);
-
-        executionRepository.save(execution);
-        flowExecutionRepository.save(flowExecution);
-
-        service.startExecution(
-                EXECUTION_ID,
-                FLOW_ID);
-
-        final FlowExecution result =
-                service.cancelExecution(
-                        EXECUTION_ID,
-                        FLOW_ID);
-
-        assertNotNull(result);
-
-        assertEquals(
-                FlowExecutionStatus.CANCELLED,
-                result.status());
-
-        assertEquals(
-                FIXED_TIME,
-                result.completedAt());
-
-        final Execution savedExecution =
-                executionRepository
-                        .findById(EXECUTION_ID)
-                        .orElseThrow();
-
-        assertEquals(
-                ExecutionStatus.CANCELLED,
-                savedExecution.status());
-
-        assertEquals(
-                FIXED_TIME,
-                savedExecution.completedAt());
-
-        final FlowExecution savedFlowExecution =
-                flowExecutionRepository
-                        .findById(
-                                EXECUTION_ID,
-                                FLOW_ID)
-                        .orElseThrow();
-
-        assertEquals(
-                FlowExecutionStatus.CANCELLED,
-                savedFlowExecution.status());
+    private Execution execution() {
+        return executionRepository.findById(EXECUTION_ID).orElseThrow();
     }
 
-    @Test
-    void cancelExecutionShouldCancelPendingFlowAndExecution() {
-        final Execution execution =
-                new Execution(
-                        createExecutionReference());
-
-        final FlowExecution flowExecution =
-                new FlowExecution(
-                        EXECUTION_ID,
-                        FLOW_ID);
-
-        executionRepository.save(execution);
-        flowExecutionRepository.save(flowExecution);
-
-        final FlowExecution result =
-                service.cancelExecution(
-                        EXECUTION_ID,
-                        FLOW_ID);
-
-        assertNotNull(result);
-
-        assertEquals(
-                FlowExecutionStatus.CANCELLED,
-                result.status());
-
-        assertEquals(
-                FIXED_TIME,
-                result.completedAt());
-
-        final Execution savedExecution =
-                executionRepository
-                        .findById(EXECUTION_ID)
-                        .orElseThrow();
-
-        assertEquals(
-                ExecutionStatus.CANCELLED,
-                savedExecution.status());
-
-        assertEquals(
-                FIXED_TIME,
-                savedExecution.completedAt());
-
-        final FlowExecution savedFlowExecution =
-                flowExecutionRepository
-                        .findById(
-                                EXECUTION_ID,
-                                FLOW_ID)
-                        .orElseThrow();
-
-        assertEquals(
-                FlowExecutionStatus.CANCELLED,
-                savedFlowExecution.status());
+    private FlowExecution flowExecution() {
+        return flowExecutionRepository
+                .findById(EXECUTION_ID, FLOW_ID)
+                .orElseThrow();
     }
 
-    private static io.github.avinashio.ozhuku.domain.execution.ExecutionReference
-    createExecutionReference() {
+    private SourceExecution sourceExecution() {
+        return sourceExecutionRepository
+                .findById(
+                        EXECUTION_ID,
+                        SOURCE_RESOURCE_ID)
+                .orElseThrow();
+    }
 
-        return new io.github.avinashio.ozhuku.domain.execution.ExecutionReference(
-                EXECUTION_ID,
-                new io.github.avinashio.ozhuku.domain.identity.PipelineId(
-                        "pipeline-1"),
-                new io.github.avinashio.ozhuku.domain.identity.PipelineVersion(
-                        1));
+    private DestinationExecution destinationExecution() {
+        return destinationExecutionRepository
+                .findById(
+                        EXECUTION_ID,
+                        DESTINATION_RESOURCE_ID)
+                .orElseThrow();
     }
 
     private static final class FakeExecutionRepository
@@ -602,22 +277,14 @@ class ExecutionOrchestrationServiceTest {
         private final Map<ExecutionId, Execution> executions =
                 new HashMap<>();
 
-        private int saveCount;
-
         @Override
         public Optional<Execution> findById(
                 final ExecutionId executionId) {
-
-            return Optional.ofNullable(
-                    executions.get(executionId));
+            return Optional.ofNullable(executions.get(executionId));
         }
 
         @Override
-        public void save(
-                final Execution execution) {
-
-            saveCount++;
-
+        public void save(final Execution execution) {
             executions.put(
                     execution.reference().executionId(),
                     execution);
@@ -636,16 +303,11 @@ class ExecutionOrchestrationServiceTest {
                 final FlowId flowId) {
 
             return Optional.ofNullable(
-                    executions.get(
-                            key(
-                                    executionId,
-                                    flowId)));
+                    executions.get(key(executionId, flowId)));
         }
 
         @Override
-        public void save(
-                final FlowExecution flowExecution) {
-
+        public void save(final FlowExecution flowExecution) {
             executions.put(
                     key(
                             flowExecution.executionId(),
@@ -653,11 +315,78 @@ class ExecutionOrchestrationServiceTest {
                     flowExecution);
         }
 
-        private static String key(
+        private String key(
                 final ExecutionId executionId,
                 final FlowId flowId) {
+            return executionId.value() + ":" + flowId.value();
+        }
+    }
 
-            return executionId + ":" + flowId;
+    private static final class FakeSourceExecutionRepository
+            implements SourceExecutionRepository {
+
+        private final Map<String, SourceExecution> executions =
+                new HashMap<>();
+
+        @Override
+        public Optional<SourceExecution> findById(
+                final ExecutionId executionId,
+                final ResourceId resourceId) {
+
+            return Optional.ofNullable(
+                    executions.get(key(executionId, resourceId)));
+        }
+
+        @Override
+        public void save(final SourceExecution sourceExecution) {
+            executions.put(
+                    key(
+                            sourceExecution.reference().executionId(),
+                            sourceExecution.reference().resourceId()),
+                    sourceExecution);
+        }
+
+        private String key(
+                final ExecutionId executionId,
+                final ResourceId resourceId) {
+            return executionId.value()
+                    + ":"
+                    + resourceId.value();
+        }
+    }
+
+    private static final class FakeDestinationExecutionRepository
+            implements DestinationExecutionRepository {
+
+        private final Map<String, DestinationExecution> executions =
+                new HashMap<>();
+
+        @Override
+        public Optional<DestinationExecution> findById(
+                final ExecutionId executionId,
+                final ResourceId resourceId) {
+
+            return Optional.ofNullable(
+                    executions.get(key(executionId, resourceId)));
+        }
+
+        @Override
+        public void save(
+                final DestinationExecution destinationExecution) {
+
+            executions.put(
+                    key(
+                            destinationExecution.reference().executionId(),
+                            destinationExecution.reference().resourceId()),
+                    destinationExecution);
+        }
+
+        private String key(
+                final ExecutionId executionId,
+                final ResourceId resourceId) {
+            return executionId.value()
+                    + ":"
+                    + resourceId.value();
         }
     }
 }

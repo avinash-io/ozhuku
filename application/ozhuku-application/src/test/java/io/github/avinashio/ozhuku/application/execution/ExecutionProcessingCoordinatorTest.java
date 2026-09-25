@@ -11,11 +11,17 @@ import io.github.avinashio.ozhuku.application.record.RecordProcessingService;
 import io.github.avinashio.ozhuku.application.transfer.ResourceTransferService;
 import io.github.avinashio.ozhuku.domain.delivery.ConflictBehavior;
 import io.github.avinashio.ozhuku.domain.delivery.DeliveryPolicy;
+import io.github.avinashio.ozhuku.domain.execution.DestinationExecution;
+import io.github.avinashio.ozhuku.domain.execution.DestinationExecutionReference;
+import io.github.avinashio.ozhuku.domain.execution.DestinationExecutionStatus;
 import io.github.avinashio.ozhuku.domain.execution.Execution;
 import io.github.avinashio.ozhuku.domain.execution.ExecutionReference;
 import io.github.avinashio.ozhuku.domain.execution.ExecutionStatus;
 import io.github.avinashio.ozhuku.domain.execution.FlowExecution;
 import io.github.avinashio.ozhuku.domain.execution.FlowExecutionStatus;
+import io.github.avinashio.ozhuku.domain.execution.SourceExecution;
+import io.github.avinashio.ozhuku.domain.execution.SourceExecutionReference;
+import io.github.avinashio.ozhuku.domain.execution.SourceExecutionStatus;
 import io.github.avinashio.ozhuku.domain.identity.ExecutionId;
 import io.github.avinashio.ozhuku.domain.identity.FlowId;
 import io.github.avinashio.ozhuku.domain.identity.PipelineId;
@@ -30,8 +36,10 @@ import io.github.avinashio.ozhuku.domain.resource.ResourceLocation;
 import io.github.avinashio.ozhuku.format.FormatReadResult;
 import io.github.avinashio.ozhuku.format.FormatReader;
 import io.github.avinashio.ozhuku.format.FormatWriter;
+import io.github.avinashio.ozhuku.persistence.DestinationExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.ExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.FlowExecutionRepository;
+import io.github.avinashio.ozhuku.persistence.SourceExecutionRepository;
 import io.github.avinashio.ozhuku.storage.StorageOutput;
 import io.github.avinashio.ozhuku.storage.StorageOutputProvider;
 import io.github.avinashio.ozhuku.storage.StorageReader;
@@ -63,8 +71,16 @@ class ExecutionProcessingCoordinatorTest {
     private static final FlowId FLOW_ID =
             new FlowId("flow-1");
 
+    private static final ResourceId SOURCE_RESOURCE_ID =
+            new ResourceId("source");
+
+    private static final ResourceId DESTINATION_RESOURCE_ID =
+            new ResourceId("destination");
+
     private FakeExecutionRepository executionRepository;
     private FakeFlowExecutionRepository flowExecutionRepository;
+    private FakeSourceExecutionRepository sourceExecutionRepository;
+    private FakeDestinationExecutionRepository destinationExecutionRepository;
 
     private ExecutionProcessingCoordinator service;
 
@@ -75,6 +91,12 @@ class ExecutionProcessingCoordinatorTest {
 
         flowExecutionRepository =
                 new FakeFlowExecutionRepository();
+
+        sourceExecutionRepository =
+                new FakeSourceExecutionRepository();
+
+        destinationExecutionRepository =
+                new FakeDestinationExecutionRepository();
 
         final Clock clock =
                 Clock.fixed(
@@ -91,10 +113,24 @@ class ExecutionProcessingCoordinatorTest {
                         flowExecutionRepository,
                         clock);
 
+        final SourceExecutionLifecycleService
+                sourceExecutionLifecycleService =
+                new SourceExecutionLifecycleService(
+                        sourceExecutionRepository,
+                        clock);
+
+        final DestinationExecutionLifecycleService
+                destinationExecutionLifecycleService =
+                new DestinationExecutionLifecycleService(
+                        destinationExecutionRepository,
+                        clock);
+
         final ExecutionOrchestrationService orchestrationService =
                 new ExecutionOrchestrationService(
                         executionLifecycleService,
-                        flowExecutionLifecycleService);
+                        flowExecutionLifecycleService,
+                        sourceExecutionLifecycleService,
+                        destinationExecutionLifecycleService);
 
         final ResourceTransferService resourceTransferService =
                 new ResourceTransferService(
@@ -135,41 +171,39 @@ class ExecutionProcessingCoordinatorTest {
                 FLOW_ID,
                 request);
 
-        final Execution execution =
-                executionRepository
-                        .findById(EXECUTION_ID)
-                        .orElseThrow();
-
         assertEquals(
                 ExecutionStatus.COMPLETED,
-                execution.status());
+                executionRepository
+                        .findById(EXECUTION_ID)
+                        .orElseThrow()
+                        .status());
 
         assertEquals(
-                FIXED_TIME,
-                execution.startedAt());
-
-        assertEquals(
-                FIXED_TIME,
-                execution.completedAt());
-
-        final FlowExecution flowExecution =
+                FlowExecutionStatus.COMPLETED,
                 flowExecutionRepository
                         .findById(
                                 EXECUTION_ID,
                                 FLOW_ID)
-                        .orElseThrow();
+                        .orElseThrow()
+                        .status());
 
         assertEquals(
-                FlowExecutionStatus.COMPLETED,
-                flowExecution.status());
+                SourceExecutionStatus.COMPLETED,
+                sourceExecutionRepository
+                        .findById(
+                                EXECUTION_ID,
+                                SOURCE_RESOURCE_ID)
+                        .orElseThrow()
+                        .status());
 
         assertEquals(
-                FIXED_TIME,
-                flowExecution.startedAt());
-
-        assertEquals(
-                FIXED_TIME,
-                flowExecution.completedAt());
+                DestinationExecutionStatus.COMPLETED,
+                destinationExecutionRepository
+                        .findById(
+                                EXECUTION_ID,
+                                DESTINATION_RESOURCE_ID)
+                        .orElseThrow()
+                        .status());
     }
 
     @Test
@@ -206,28 +240,44 @@ class ExecutionProcessingCoordinatorTest {
                 request);
 
         assertEquals(
-                List.of(firstRecord, secondRecord),
+                List.of(
+                        firstRecord,
+                        secondRecord),
                 formatWriter.records());
-
-        final Execution execution =
-                executionRepository
-                        .findById(EXECUTION_ID)
-                        .orElseThrow();
 
         assertEquals(
                 ExecutionStatus.COMPLETED,
-                execution.status());
+                executionRepository
+                        .findById(EXECUTION_ID)
+                        .orElseThrow()
+                        .status());
 
-        final FlowExecution flowExecution =
+        assertEquals(
+                FlowExecutionStatus.COMPLETED,
                 flowExecutionRepository
                         .findById(
                                 EXECUTION_ID,
                                 FLOW_ID)
-                        .orElseThrow();
+                        .orElseThrow()
+                        .status());
 
         assertEquals(
-                FlowExecutionStatus.COMPLETED,
-                flowExecution.status());
+                SourceExecutionStatus.COMPLETED,
+                sourceExecutionRepository
+                        .findById(
+                                EXECUTION_ID,
+                                SOURCE_RESOURCE_ID)
+                        .orElseThrow()
+                        .status());
+
+        assertEquals(
+                DestinationExecutionStatus.COMPLETED,
+                destinationExecutionRepository
+                        .findById(
+                                EXECUTION_ID,
+                                DESTINATION_RESOURCE_ID)
+                        .orElseThrow()
+                        .status());
     }
 
     @Test
@@ -293,6 +343,24 @@ class ExecutionProcessingCoordinatorTest {
                                 FLOW_ID)
                         .orElseThrow()
                         .status());
+
+        assertEquals(
+                SourceExecutionStatus.FAILED,
+                sourceExecutionRepository
+                        .findById(
+                                EXECUTION_ID,
+                                SOURCE_RESOURCE_ID)
+                        .orElseThrow()
+                        .status());
+
+        assertEquals(
+                DestinationExecutionStatus.FAILED,
+                destinationExecutionRepository
+                        .findById(
+                                EXECUTION_ID,
+                                DESTINATION_RESOURCE_ID)
+                        .orElseThrow()
+                        .status());
     }
 
     @Test
@@ -352,6 +420,24 @@ class ExecutionProcessingCoordinatorTest {
                                 FLOW_ID)
                         .orElseThrow()
                         .status());
+
+        assertEquals(
+                SourceExecutionStatus.FAILED,
+                sourceExecutionRepository
+                        .findById(
+                                EXECUTION_ID,
+                                SOURCE_RESOURCE_ID)
+                        .orElseThrow()
+                        .status());
+
+        assertEquals(
+                DestinationExecutionStatus.FAILED,
+                destinationExecutionRepository
+                        .findById(
+                                EXECUTION_ID,
+                                DESTINATION_RESOURCE_ID)
+                        .orElseThrow()
+                        .status());
     }
 
     private void createPendingExecution() {
@@ -363,6 +449,18 @@ class ExecutionProcessingCoordinatorTest {
                 new FlowExecution(
                         EXECUTION_ID,
                         FLOW_ID));
+
+        sourceExecutionRepository.save(
+                new SourceExecution(
+                        new SourceExecutionReference(
+                                EXECUTION_ID,
+                                SOURCE_RESOURCE_ID)));
+
+        destinationExecutionRepository.save(
+                new DestinationExecution(
+                        new DestinationExecutionReference(
+                                EXECUTION_ID,
+                                DESTINATION_RESOURCE_ID)));
     }
 
     private ExecutionProcessingCoordinator createService(
@@ -380,6 +478,12 @@ class ExecutionProcessingCoordinatorTest {
                                 clock),
                         new FlowExecutionLifecycleService(
                                 flowExecutionRepository,
+                                clock),
+                        new SourceExecutionLifecycleService(
+                                sourceExecutionRepository,
+                                clock),
+                        new DestinationExecutionLifecycleService(
+                                destinationExecutionRepository,
                                 clock));
 
         return new ExecutionProcessingCoordinator(
@@ -621,6 +725,80 @@ class ExecutionProcessingCoordinatorTest {
                 final FlowId flowId) {
 
             return executionId + ":" + flowId;
+        }
+    }
+
+    private static final class FakeSourceExecutionRepository
+            implements SourceExecutionRepository {
+
+        private final Map<String, SourceExecution> executions =
+                new HashMap<>();
+
+        @Override
+        public Optional<SourceExecution> findById(
+                final ExecutionId executionId,
+                final ResourceId resourceId) {
+
+            return Optional.ofNullable(
+                    executions.get(
+                            key(
+                                    executionId,
+                                    resourceId)));
+        }
+
+        @Override
+        public void save(
+                final SourceExecution sourceExecution) {
+
+            executions.put(
+                    key(
+                            sourceExecution.reference().executionId(),
+                            sourceExecution.reference().resourceId()),
+                    sourceExecution);
+        }
+
+        private static String key(
+                final ExecutionId executionId,
+                final ResourceId resourceId) {
+
+            return executionId + ":" + resourceId;
+        }
+    }
+
+    private static final class FakeDestinationExecutionRepository
+            implements DestinationExecutionRepository {
+
+        private final Map<String, DestinationExecution> executions =
+                new HashMap<>();
+
+        @Override
+        public Optional<DestinationExecution> findById(
+                final ExecutionId executionId,
+                final ResourceId resourceId) {
+
+            return Optional.ofNullable(
+                    executions.get(
+                            key(
+                                    executionId,
+                                    resourceId)));
+        }
+
+        @Override
+        public void save(
+                final DestinationExecution destinationExecution) {
+
+            executions.put(
+                    key(
+                            destinationExecution.reference().executionId(),
+                            destinationExecution.reference().resourceId()),
+                    destinationExecution);
+        }
+
+        private static String key(
+                final ExecutionId executionId,
+                final ResourceId resourceId) {
+
+            return executionId + ":" + resourceId;
         }
     }
 }

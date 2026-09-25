@@ -1,111 +1,263 @@
 package io.github.avinashio.ozhuku.application.orchestration;
 
+import io.github.avinashio.ozhuku.application.execution.DestinationExecutionLifecycleService;
 import io.github.avinashio.ozhuku.application.execution.ExecutionLifecycleService;
 import io.github.avinashio.ozhuku.application.execution.FlowExecutionLifecycleService;
+import io.github.avinashio.ozhuku.application.execution.SourceExecutionLifecycleService;
+import io.github.avinashio.ozhuku.domain.execution.DestinationExecution;
 import io.github.avinashio.ozhuku.domain.execution.FlowExecution;
+import io.github.avinashio.ozhuku.domain.execution.SourceExecution;
 import io.github.avinashio.ozhuku.domain.identity.ExecutionId;
 import io.github.avinashio.ozhuku.domain.identity.FlowId;
+import io.github.avinashio.ozhuku.domain.identity.ResourceId;
 import java.util.Objects;
 
 public final class ExecutionOrchestrationService {
 
     private final ExecutionLifecycleService executionLifecycleService;
     private final FlowExecutionLifecycleService flowExecutionLifecycleService;
+    private final SourceExecutionLifecycleService sourceExecutionLifecycleService;
+    private final DestinationExecutionLifecycleService
+            destinationExecutionLifecycleService;
 
     public ExecutionOrchestrationService(
             final ExecutionLifecycleService executionLifecycleService,
-            final FlowExecutionLifecycleService flowExecutionLifecycleService) {
-        this.executionLifecycleService = Objects.requireNonNull(
-                executionLifecycleService,
-                "executionLifecycleService must not be null");
-        this.flowExecutionLifecycleService = Objects.requireNonNull(
-                flowExecutionLifecycleService,
-                "flowExecutionLifecycleService must not be null");
+            final FlowExecutionLifecycleService flowExecutionLifecycleService,
+            final SourceExecutionLifecycleService
+                    sourceExecutionLifecycleService,
+            final DestinationExecutionLifecycleService
+                    destinationExecutionLifecycleService) {
+
+        this.executionLifecycleService =
+                Objects.requireNonNull(
+                        executionLifecycleService,
+                        "executionLifecycleService must not be null");
+
+        this.flowExecutionLifecycleService =
+                Objects.requireNonNull(
+                        flowExecutionLifecycleService,
+                        "flowExecutionLifecycleService must not be null");
+
+        this.sourceExecutionLifecycleService =
+                Objects.requireNonNull(
+                        sourceExecutionLifecycleService,
+                        "sourceExecutionLifecycleService must not be null");
+
+        this.destinationExecutionLifecycleService =
+                Objects.requireNonNull(
+                        destinationExecutionLifecycleService,
+                        "destinationExecutionLifecycleService must not be null");
     }
 
-    public FlowExecution startExecution(
+    public DestinationExecution startExecution(
             final ExecutionId executionId,
-            final FlowId flowId) {
+            final FlowId flowId,
+            final ResourceId sourceResourceId,
+            final ResourceId destinationResourceId) {
 
-        Objects.requireNonNull(
+        requireArguments(
                 executionId,
-                "executionId must not be null");
-        Objects.requireNonNull(
                 flowId,
-                "flowId must not be null");
+                sourceResourceId,
+                destinationResourceId);
 
         executionLifecycleService.start(executionId);
 
         try {
-            return flowExecutionLifecycleService.start(
+            flowExecutionLifecycleService.start(
                     executionId,
                     flowId);
+
+            try {
+                sourceExecutionLifecycleService.start(
+                        executionId,
+                        sourceResourceId);
+
+                try {
+                    return destinationExecutionLifecycleService.start(
+                            executionId,
+                            destinationResourceId);
+                } catch (RuntimeException exception) {
+                    failSourceExecution(
+                            executionId,
+                            sourceResourceId,
+                            exception);
+                    failFlowExecution(
+                            executionId,
+                            flowId,
+                            exception);
+                    failExecution(
+                            executionId,
+                            exception);
+                    throw exception;
+                }
+            } catch (RuntimeException exception) {
+                failFlowExecution(
+                        executionId,
+                        flowId,
+                        exception);
+                failExecution(
+                        executionId,
+                        exception);
+                throw exception;
+            }
         } catch (RuntimeException exception) {
-            executionLifecycleService.fail(executionId);
+            failExecution(
+                    executionId,
+                    exception);
             throw exception;
         }
     }
 
-    public FlowExecution completeExecution(
+    public DestinationExecution completeExecution(
             final ExecutionId executionId,
-            final FlowId flowId) {
+            final FlowId flowId,
+            final ResourceId sourceResourceId,
+            final ResourceId destinationResourceId) {
 
-        Objects.requireNonNull(
+        requireArguments(
                 executionId,
-                "executionId must not be null");
-        Objects.requireNonNull(
                 flowId,
-                "flowId must not be null");
+                sourceResourceId,
+                destinationResourceId);
 
-        final FlowExecution completedFlowExecution =
-                flowExecutionLifecycleService.complete(
+        final DestinationExecution completedDestination =
+                destinationExecutionLifecycleService.complete(
                         executionId,
-                        flowId);
+                        destinationResourceId);
+
+        sourceExecutionLifecycleService.complete(
+                executionId,
+                sourceResourceId);
+
+        flowExecutionLifecycleService.complete(
+                executionId,
+                flowId);
 
         executionLifecycleService.complete(executionId);
 
-        return completedFlowExecution;
+        return completedDestination;
     }
 
-    public FlowExecution failExecution(
+    public DestinationExecution failExecution(
             final ExecutionId executionId,
-            final FlowId flowId) {
+            final FlowId flowId,
+            final ResourceId sourceResourceId,
+            final ResourceId destinationResourceId) {
 
-        Objects.requireNonNull(
+        requireArguments(
                 executionId,
-                "executionId must not be null");
-        Objects.requireNonNull(
                 flowId,
-                "flowId must not be null");
+                sourceResourceId,
+                destinationResourceId);
 
-        final FlowExecution failedFlowExecution =
-                flowExecutionLifecycleService.fail(
+        final DestinationExecution failedDestination =
+                destinationExecutionLifecycleService.fail(
                         executionId,
-                        flowId);
+                        destinationResourceId);
+
+        sourceExecutionLifecycleService.fail(
+                executionId,
+                sourceResourceId);
+
+        flowExecutionLifecycleService.fail(
+                executionId,
+                flowId);
 
         executionLifecycleService.fail(executionId);
 
-        return failedFlowExecution;
+        return failedDestination;
     }
 
-    public FlowExecution cancelExecution(
+    public DestinationExecution cancelExecution(
             final ExecutionId executionId,
-            final FlowId flowId) {
+            final FlowId flowId,
+            final ResourceId sourceResourceId,
+            final ResourceId destinationResourceId) {
+
+        requireArguments(
+                executionId,
+                flowId,
+                sourceResourceId,
+                destinationResourceId);
+
+        final DestinationExecution cancelledDestination =
+                destinationExecutionLifecycleService.cancel(
+                        executionId,
+                        destinationResourceId);
+
+        sourceExecutionLifecycleService.cancel(
+                executionId,
+                sourceResourceId);
+
+        flowExecutionLifecycleService.cancel(
+                executionId,
+                flowId);
+
+        executionLifecycleService.cancel(executionId);
+
+        return cancelledDestination;
+    }
+
+    private void requireArguments(
+            final ExecutionId executionId,
+            final FlowId flowId,
+            final ResourceId sourceResourceId,
+            final ResourceId destinationResourceId) {
 
         Objects.requireNonNull(
                 executionId,
                 "executionId must not be null");
+
         Objects.requireNonNull(
                 flowId,
                 "flowId must not be null");
 
-        final FlowExecution cancelledFlowExecution =
-                flowExecutionLifecycleService.cancel(
-                        executionId,
-                        flowId);
+        Objects.requireNonNull(
+                sourceResourceId,
+                "sourceResourceId must not be null");
 
-        executionLifecycleService.cancel(executionId);
+        Objects.requireNonNull(
+                destinationResourceId,
+                "destinationResourceId must not be null");
+    }
 
-        return cancelledFlowExecution;
+    private void failSourceExecution(
+            final ExecutionId executionId,
+            final ResourceId sourceResourceId,
+            final RuntimeException originalException) {
+
+        try {
+            sourceExecutionLifecycleService.fail(
+                    executionId,
+                    sourceResourceId);
+        } catch (RuntimeException failureException) {
+            originalException.addSuppressed(failureException);
+        }
+    }
+
+    private void failFlowExecution(
+            final ExecutionId executionId,
+            final FlowId flowId,
+            final RuntimeException originalException) {
+
+        try {
+            flowExecutionLifecycleService.fail(
+                    executionId,
+                    flowId);
+        } catch (RuntimeException failureException) {
+            originalException.addSuppressed(failureException);
+        }
+    }
+
+    private void failExecution(
+            final ExecutionId executionId,
+            final RuntimeException originalException) {
+
+        try {
+            executionLifecycleService.fail(executionId);
+        } catch (RuntimeException failureException) {
+            originalException.addSuppressed(failureException);
+        }
     }
 }

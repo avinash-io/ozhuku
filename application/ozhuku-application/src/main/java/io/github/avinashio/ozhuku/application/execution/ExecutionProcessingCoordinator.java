@@ -49,7 +49,9 @@ public final class ExecutionProcessingCoordinator {
 
         executionOrchestrationService.startExecution(
                 executionId,
-                flowId);
+                flowId,
+                request.source().id(),
+                request.destination().id());
 
         try {
             executionProcessingService.processResourceTransfer(
@@ -58,17 +60,23 @@ public final class ExecutionProcessingCoordinator {
 
             executionOrchestrationService.completeExecution(
                     executionId,
-                    flowId);
+                    flowId,
+                    request.source().id(),
+                    request.destination().id());
+
         } catch (IOException exception) {
             failExecution(
                     executionId,
                     flowId,
+                    request,
                     exception);
             throw exception;
+
         } catch (RuntimeException exception) {
             failExecution(
                     executionId,
                     flowId,
+                    request,
                     exception);
             throw exception;
         }
@@ -94,7 +102,9 @@ public final class ExecutionProcessingCoordinator {
 
         executionOrchestrationService.startExecution(
                 executionId,
-                flowId);
+                flowId,
+                request.source().id(),
+                request.destination().id());
 
         try {
             executionProcessingService.processRecordProcessing(
@@ -103,17 +113,23 @@ public final class ExecutionProcessingCoordinator {
 
             executionOrchestrationService.completeExecution(
                     executionId,
-                    flowId);
+                    flowId,
+                    request.source().id(),
+                    request.destination().id());
+
         } catch (IOException exception) {
             failExecution(
                     executionId,
                     flowId,
+                    request,
                     exception);
             throw exception;
+
         } catch (RuntimeException exception) {
             failExecution(
                     executionId,
                     flowId,
+                    request,
                     exception);
             throw exception;
         }
@@ -122,12 +138,16 @@ public final class ExecutionProcessingCoordinator {
     private void failExecution(
             final ExecutionId executionId,
             final FlowId flowId,
+            final ResourceTransferRequest request,
             final IOException originalException) {
 
         try {
             executionOrchestrationService.failExecution(
                     executionId,
-                    flowId);
+                    flowId,
+                    request.source().id(),
+                    request.destination().id());
+
         } catch (RuntimeException failureException) {
             originalException.addSuppressed(
                     failureException);
@@ -137,12 +157,54 @@ public final class ExecutionProcessingCoordinator {
     private void failExecution(
             final ExecutionId executionId,
             final FlowId flowId,
+            final ResourceTransferRequest request,
             final RuntimeException originalException) {
 
         try {
             executionOrchestrationService.failExecution(
                     executionId,
-                    flowId);
+                    flowId,
+                    request.source().id(),
+                    request.destination().id());
+
+        } catch (RuntimeException failureException) {
+            originalException.addSuppressed(
+                    failureException);
+        }
+    }
+
+    private void failExecution(
+            final ExecutionId executionId,
+            final FlowId flowId,
+            final RecordProcessingRequest request,
+            final IOException originalException) {
+
+        try {
+            executionOrchestrationService.failExecution(
+                    executionId,
+                    flowId,
+                    request.source().id(),
+                    request.destination().id());
+
+        } catch (RuntimeException failureException) {
+            originalException.addSuppressed(
+                    failureException);
+        }
+    }
+
+    private void failExecution(
+            final ExecutionId executionId,
+            final FlowId flowId,
+            final RecordProcessingRequest request,
+            final RuntimeException originalException) {
+
+        try {
+            executionOrchestrationService.failExecution(
+                    executionId,
+                    flowId,
+                    request.source().id(),
+                    request.destination().id());
+
         } catch (RuntimeException failureException) {
             originalException.addSuppressed(
                     failureException);
