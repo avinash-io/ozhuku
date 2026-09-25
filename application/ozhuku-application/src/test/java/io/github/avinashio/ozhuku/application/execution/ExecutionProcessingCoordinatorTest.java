@@ -149,9 +149,15 @@ class ExecutionProcessingCoordinatorTest {
                         resourceTransferService,
                         recordProcessingService);
 
+        final ExecutionResourceValidator executionResourceValidator =
+                new ExecutionResourceValidator(
+                        sourceExecutionRepository,
+                        destinationExecutionRepository);
+
         service = new ExecutionProcessingCoordinator(
                 orchestrationService,
-                processingService);
+                processingService,
+                executionResourceValidator);
     }
 
     @Test
@@ -486,9 +492,15 @@ class ExecutionProcessingCoordinatorTest {
                                 destinationExecutionRepository,
                                 clock));
 
+        final ExecutionResourceValidator executionResourceValidator =
+                new ExecutionResourceValidator(
+                        sourceExecutionRepository,
+                        destinationExecutionRepository);
+
         return new ExecutionProcessingCoordinator(
                 orchestrationService,
-                processingService);
+                processingService,
+                executionResourceValidator);
     }
 
     private static ExecutionReference createExecutionReference() {
@@ -800,5 +812,67 @@ class ExecutionProcessingCoordinatorTest {
 
             return executionId + ":" + resourceId;
         }
+    }
+
+    @Test
+    void processResourceTransferShouldRejectUnknownSourceBeforeStartingExecution()
+            throws IOException {
+
+        createPendingExecution();
+
+        final ResourceTransferRequest request =
+                new ResourceTransferRequest(
+                        resource("unknown-source"),
+                        resource("destination"),
+                        deliveryPolicy());
+
+        final IllegalStateException actual =
+                assertThrows(
+                        IllegalStateException.class,
+                        () -> service.processResourceTransfer(
+                                EXECUTION_ID,
+                                FLOW_ID,
+                                request));
+
+        assertEquals(
+                "Source execution not found for execution "
+                        + EXECUTION_ID
+                        + " and resource "
+                        + new ResourceId("unknown-source"),
+                actual.getMessage());
+
+        assertEquals(
+                ExecutionStatus.PENDING,
+                executionRepository
+                        .findById(EXECUTION_ID)
+                        .orElseThrow()
+                        .status());
+
+        assertEquals(
+                FlowExecutionStatus.PENDING,
+                flowExecutionRepository
+                        .findById(
+                                EXECUTION_ID,
+                                FLOW_ID)
+                        .orElseThrow()
+                        .status());
+
+        assertEquals(
+                SourceExecutionStatus.PENDING,
+                sourceExecutionRepository
+                        .findById(
+                                EXECUTION_ID,
+                                SOURCE_RESOURCE_ID)
+                        .orElseThrow()
+                        .status());
+
+        assertEquals(
+                DestinationExecutionStatus.PENDING,
+                destinationExecutionRepository
+                        .findById(
+                                EXECUTION_ID,
+                                DESTINATION_RESOURCE_ID)
+                        .orElseThrow()
+                        .status());
     }
 }

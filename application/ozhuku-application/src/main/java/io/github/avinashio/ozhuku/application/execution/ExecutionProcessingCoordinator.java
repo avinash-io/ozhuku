@@ -13,10 +13,12 @@ public final class ExecutionProcessingCoordinator {
 
     private final ExecutionOrchestrationService executionOrchestrationService;
     private final ExecutionProcessingService executionProcessingService;
+    private final ExecutionResourceValidator executionResourceValidator;
 
     public ExecutionProcessingCoordinator(
             final ExecutionOrchestrationService executionOrchestrationService,
-            final ExecutionProcessingService executionProcessingService) {
+            final ExecutionProcessingService executionProcessingService,
+            final ExecutionResourceValidator executionResourceValidator) {
 
         this.executionOrchestrationService =
                 Objects.requireNonNull(
@@ -27,6 +29,11 @@ public final class ExecutionProcessingCoordinator {
                 Objects.requireNonNull(
                         executionProcessingService,
                         "executionProcessingService must not be null");
+
+        this.executionResourceValidator =
+                Objects.requireNonNull(
+                        executionResourceValidator,
+                        "executionResourceValidator must not be null");
     }
 
     public void processResourceTransfer(
@@ -46,6 +53,11 @@ public final class ExecutionProcessingCoordinator {
         Objects.requireNonNull(
                 request,
                 "request must not be null");
+
+        executionResourceValidator.validate(
+                executionId,
+                request.source().id(),
+                request.destination().id());
 
         executionOrchestrationService.startExecution(
                 executionId,
@@ -99,6 +111,11 @@ public final class ExecutionProcessingCoordinator {
         Objects.requireNonNull(
                 request,
                 "request must not be null");
+
+        executionResourceValidator.validate(
+                executionId,
+                request.source().id(),
+                request.destination().id());
 
         executionOrchestrationService.startExecution(
                 executionId,
