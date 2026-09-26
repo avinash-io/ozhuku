@@ -1,5 +1,18 @@
 package io.github.avinashio.ozhuku.server.config;
 
+import io.github.avinashio.ozhuku.application.execution.DestinationExecutionLifecycleService;
+import io.github.avinashio.ozhuku.application.execution.ExecutionLifecycleService;
+import io.github.avinashio.ozhuku.application.orchestration.ExecutionOrchestrationService;
+import io.github.avinashio.ozhuku.application.execution.ExecutionProcessingCoordinator;
+import io.github.avinashio.ozhuku.application.execution.ExecutionResourceValidator;
+import io.github.avinashio.ozhuku.application.execution.ExecutionRunService;
+import io.github.avinashio.ozhuku.application.execution.FlowExecutionLifecycleService;
+import io.github.avinashio.ozhuku.application.execution.PipelineExecutionService;
+import io.github.avinashio.ozhuku.application.execution.SourceExecutionLifecycleService;
+import io.github.avinashio.ozhuku.application.initialization.ExecutionInitializationService;
+import io.github.avinashio.ozhuku.application.processing.ExecutionProcessingService;
+import io.github.avinashio.ozhuku.application.record.RecordProcessingService;
+import io.github.avinashio.ozhuku.application.transfer.ResourceTransferService;
 import io.github.avinashio.ozhuku.format.FormatReader;
 import io.github.avinashio.ozhuku.format.FormatWriter;
 import io.github.avinashio.ozhuku.format.csv.CsvFormatReader;
@@ -26,6 +39,7 @@ import io.github.avinashio.ozhuku.storage.file.FileStoragePathResolver;
 import io.github.avinashio.ozhuku.storage.file.FileStorageReader;
 import io.github.avinashio.ozhuku.storage.file.FileStorageWriter;
 import java.nio.file.Path;
+import java.time.Clock;
 import javax.sql.DataSource;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -33,6 +47,11 @@ import org.springframework.context.annotation.Configuration;
 
 @Configuration
 public class RuntimeConfiguration {
+
+    @Bean
+    public Clock clock() {
+        return Clock.systemUTC();
+    }
 
     @Bean
     public FileStoragePathResolver fileStoragePathResolver(
@@ -114,5 +133,132 @@ public class RuntimeConfiguration {
     public ProcessingRecordRepository processingRecordRepository(
             final DataSource dataSource) {
         return new PostgresProcessingRecordRepository(dataSource);
+    }
+
+    @Bean
+    public ExecutionLifecycleService executionLifecycleService(
+            final ExecutionRepository executionRepository,
+            final Clock clock) {
+        return new ExecutionLifecycleService(
+                executionRepository,
+                clock);
+    }
+
+    @Bean
+    public FlowExecutionLifecycleService flowExecutionLifecycleService(
+            final FlowExecutionRepository flowExecutionRepository,
+            final Clock clock) {
+        return new FlowExecutionLifecycleService(
+                flowExecutionRepository,
+                clock);
+    }
+
+    @Bean
+    public SourceExecutionLifecycleService sourceExecutionLifecycleService(
+            final SourceExecutionRepository sourceExecutionRepository,
+            final Clock clock) {
+        return new SourceExecutionLifecycleService(
+                sourceExecutionRepository,
+                clock);
+    }
+
+    @Bean
+    public DestinationExecutionLifecycleService
+    destinationExecutionLifecycleService(
+            final DestinationExecutionRepository destinationExecutionRepository,
+            final Clock clock) {
+        return new DestinationExecutionLifecycleService(
+                destinationExecutionRepository,
+                clock);
+    }
+
+    @Bean
+    public ExecutionOrchestrationService executionOrchestrationService(
+            final ExecutionLifecycleService executionLifecycleService,
+            final FlowExecutionLifecycleService flowExecutionLifecycleService,
+            final SourceExecutionLifecycleService sourceExecutionLifecycleService,
+            final DestinationExecutionLifecycleService
+                    destinationExecutionLifecycleService) {
+        return new ExecutionOrchestrationService(
+                executionLifecycleService,
+                flowExecutionLifecycleService,
+                sourceExecutionLifecycleService,
+                destinationExecutionLifecycleService);
+    }
+
+    @Bean
+    public ExecutionInitializationService executionInitializationService(
+            final ExecutionRepository executionRepository,
+            final FlowExecutionRepository flowExecutionRepository,
+            final SourceExecutionRepository sourceExecutionRepository,
+            final DestinationExecutionRepository destinationExecutionRepository) {
+        return new ExecutionInitializationService(
+                executionRepository,
+                flowExecutionRepository,
+                sourceExecutionRepository,
+                destinationExecutionRepository);
+    }
+
+    @Bean
+    public ExecutionResourceValidator executionResourceValidator(
+            final SourceExecutionRepository sourceExecutionRepository,
+            final DestinationExecutionRepository destinationExecutionRepository) {
+        return new ExecutionResourceValidator(
+                sourceExecutionRepository,
+                destinationExecutionRepository);
+    }
+
+    @Bean
+    public ResourceTransferService resourceTransferService(
+            final StorageReader storageReader,
+            final StorageWriter storageWriter) {
+        return new ResourceTransferService(
+                storageReader,
+                storageWriter);
+    }
+
+    @Bean
+    public RecordProcessingService recordProcessingService(
+            final StorageReader storageReader,
+            final StorageOutputProvider storageOutputProvider) {
+        return new RecordProcessingService(
+                storageReader,
+                storageOutputProvider);
+    }
+
+    @Bean
+    public ExecutionProcessingService executionProcessingService(
+            final ResourceTransferService resourceTransferService,
+            final RecordProcessingService recordProcessingService) {
+        return new ExecutionProcessingService(
+                resourceTransferService,
+                recordProcessingService);
+    }
+
+    @Bean
+    public ExecutionProcessingCoordinator executionProcessingCoordinator(
+            final ExecutionOrchestrationService executionOrchestrationService,
+            final ExecutionProcessingService executionProcessingService,
+            final ExecutionResourceValidator executionResourceValidator) {
+        return new ExecutionProcessingCoordinator(
+                executionOrchestrationService,
+                executionProcessingService,
+                executionResourceValidator);
+    }
+
+    @Bean
+    public ExecutionRunService executionRunService(
+            final ExecutionInitializationService executionInitializationService,
+            final ExecutionProcessingCoordinator executionProcessingCoordinator) {
+        return new ExecutionRunService(
+                executionInitializationService,
+                executionProcessingCoordinator);
+    }
+
+    @Bean
+    public PipelineExecutionService pipelineExecutionService(
+            final ExecutionRunService executionRunService) {
+        return new PipelineExecutionService(
+                executionRunService);
     }
 }
