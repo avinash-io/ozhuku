@@ -33,6 +33,8 @@
 
         <module>application/ozhuku-application</module>
 
+        <module>runtime/ozhuku-server</module>
+
         <module>integration/ozhuku-integration-tests</module>
 
     </modules>
