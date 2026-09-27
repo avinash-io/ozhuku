@@ -115,21 +115,25 @@ class PostgresPipelineConfigurationRepositoryIT {
                 "Complete configuration",
                 result.pipelineDefinition().description());
 
-        assertEquals("flow-complete", result.flow().id().value());
-        assertEquals("Complete Flow", result.flow().name());
+        assertEquals(
+                "flow-pipeline-complete",
+                result.flow().id().value());
+        assertEquals(
+                "Complete Flow",
+                result.flow().name());
         assertEquals(
                 FlowMode.RESOURCE_TRANSFER,
                 result.flow().mode());
 
         assertEquals(
-                "source-complete",
+                "source-pipeline-complete",
                 result.source().id().value());
         assertEquals(
                 "file:///input/source.csv",
                 result.source().location().value());
 
         assertEquals(
-                "destination-complete",
+                "destination-pipeline-complete",
                 result.destination().id().value());
         assertEquals(
                 "file:///output/destination.csv",
@@ -216,11 +220,12 @@ class PostgresPipelineConfigurationRepositoryIT {
 
         assertThrows(
                 IllegalStateException.class,
-                () -> repository.save(
-                        createConfiguration(
-                                "pipeline-immutable",
-                                1,
-                                "Replacement configuration")));
+                () ->
+                        repository.save(
+                                createConfiguration(
+                                        "pipeline-immutable",
+                                        1,
+                                        "Replacement configuration")));
 
         final PipelineConfiguration persisted =
                 repository.findByVersion(
@@ -234,10 +239,13 @@ class PostgresPipelineConfigurationRepositoryIT {
     }
 
     private static DataSource createDataSource() {
-        final PGSimpleDataSource dataSource = new PGSimpleDataSource();
+        final PGSimpleDataSource dataSource =
+                new PGSimpleDataSource();
+
         dataSource.setURL(POSTGRES.getJdbcUrl());
         dataSource.setUser(POSTGRES.getUsername());
         dataSource.setPassword(POSTGRES.getPassword());
+
         return dataSource;
     }
 
@@ -245,6 +253,7 @@ class PostgresPipelineConfigurationRepositoryIT {
             final String pipelineId,
             final long version,
             final String description) {
+
         final PipelineDefinition pipelineDefinition =
                 new PipelineDefinition(
                         new PipelineId(pipelineId),
@@ -260,15 +269,18 @@ class PostgresPipelineConfigurationRepositoryIT {
         final Resource source =
                 new Resource(
                         new ResourceId("source-" + pipelineId),
-                        new ResourceLocation("file:///input/source.csv"));
+                        new ResourceLocation(
+                                "file:///input/source.csv"));
 
         final Resource destination =
                 new Resource(
                         new ResourceId("destination-" + pipelineId),
-                        new ResourceLocation("file:///output/destination.csv"));
+                        new ResourceLocation(
+                                "file:///output/destination.csv"));
 
         final DeliveryPolicy deliveryPolicy =
-                new DeliveryPolicy(ConflictBehavior.REPLACE);
+                new DeliveryPolicy(
+                        ConflictBehavior.REPLACE);
 
         return new PipelineConfiguration(
                 pipelineDefinition,

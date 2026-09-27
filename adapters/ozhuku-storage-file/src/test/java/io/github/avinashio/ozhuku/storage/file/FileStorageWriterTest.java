@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -100,7 +101,7 @@ class FileStorageWriterTest {
     }
 
     @Test
-    void shouldFailWhenParentDirectoryDoesNotExist()
+    void shouldCreateParentDirectoryWhenItDoesNotExist()
             throws IOException {
 
         final Path root =
@@ -108,13 +109,15 @@ class FileStorageWriterTest {
 
         Files.createDirectories(root);
 
+        final Path parent =
+                root.resolve("missing");
+
+        final Path destination =
+                parent.resolve("output.txt");
+
         final FileStorageWriter writer =
                 new FileStorageWriter(
                         new FileStoragePathResolver(root));
-
-        final Path destination =
-                root.resolve("missing")
-                        .resolve("output.txt");
 
         final Resource resource =
                 new Resource(
@@ -122,17 +125,30 @@ class FileStorageWriterTest {
                         new ResourceLocation(
                                 destination.toUri().toString()));
 
-        try (InputStream content =
-                     new ByteArrayInputStream(
-                             "content".getBytes())) {
+        assertFalse(
+                Files.exists(parent));
 
-            assertThrows(
-                    IOException.class,
-                    () -> writer.write(
-                            resource,
-                            content,
-                            ConflictBehavior.REPLACE));
+        final byte[] expected =
+                "content".getBytes();
+
+        try (InputStream content =
+                     new ByteArrayInputStream(expected)) {
+
+            writer.write(
+                    resource,
+                    content,
+                    ConflictBehavior.REPLACE);
         }
+
+        assertTrue(
+                Files.isDirectory(parent));
+
+        assertTrue(
+                Files.exists(destination));
+
+        assertArrayEquals(
+                expected,
+                Files.readAllBytes(destination));
     }
 
     @Test
@@ -350,7 +366,8 @@ class FileStorageWriterTest {
     }
 
     @Test
-    void shouldRejectVersionConflictBehavior() throws IOException {
+    void shouldRejectVersionConflictBehavior()
+            throws IOException {
 
         final Path root =
                 temporaryDirectory.resolve("storage");
@@ -453,7 +470,9 @@ class FileStorageWriterTest {
                     }
 
                     @Override
-                    public int read() throws IOException {
+                    public int read()
+                            throws IOException {
+
                         if (position >= 7) {
                             throw new IOException(
                                     "Simulated source failure");
@@ -475,3 +494,4 @@ class FileStorageWriterTest {
                 Files.readAllBytes(destination));
     }
 }
+

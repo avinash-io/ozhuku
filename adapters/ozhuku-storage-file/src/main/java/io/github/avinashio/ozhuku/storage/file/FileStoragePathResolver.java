@@ -5,7 +5,6 @@ import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Objects;
 
 public final class FileStoragePathResolver {
@@ -36,9 +35,33 @@ public final class FileStoragePathResolver {
 
         final URI uri = location.uri();
 
+        if (uri.getAuthority() != null
+                && !uri.getAuthority().isBlank()) {
+            throw new IllegalArgumentException(
+                    "File resource location must not "
+                            + "contain an authority");
+        }
+
+        final String uriPath = uri.getPath();
+
+        if (uriPath == null
+                || uriPath.isBlank()) {
+            throw new IllegalArgumentException(
+                    "File resource location must contain a path");
+        }
+
+        final String relativePath =
+                uriPath.startsWith("/")
+                        ? uriPath.substring(1)
+                        : uriPath;
+
+        if (relativePath.isBlank()) {
+            throw new IllegalArgumentException(
+                    "File resource location must contain a path");
+        }
+
         final Path requestedPath =
-                Paths.get(uri)
-                        .toAbsolutePath()
+                root.resolve(relativePath)
                         .normalize();
 
         if (!requestedPath.startsWith(root)) {

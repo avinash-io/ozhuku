@@ -36,7 +36,6 @@
         <module>runtime/ozhuku-server</module>
 
         <module>integration/ozhuku-integration-tests</module>
-
     </modules>
 
     <properties>
@@ -57,7 +56,10 @@
         <checkstyle.version>3.6.0</checkstyle.version>
         <maven.enforcer.version>3.6.2</maven.enforcer.version>
         <maven.dependency.version>3.7.0</maven.dependency.version>
+
+        <!-- Dependency versions are centralized here. -->
         <junit.version>6.0.1</junit.version>
+        <testcontainers.version>1.21.3</testcontainers.version>
     </properties>
 
     <dependencyManagement>
@@ -72,6 +74,18 @@
                 <groupId>org.junit</groupId>
                 <artifactId>junit-bom</artifactId>
                 <version>${junit.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!--
+                Avinash: Testcontainers versions are managed centrally so
+                individual modules do not define container dependency versions.
+            -->
+            <dependency>
+                <groupId>org.testcontainers</groupId>
+                <artifactId>testcontainers-bom</artifactId>
+                <version>${testcontainers.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>

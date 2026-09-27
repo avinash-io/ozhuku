@@ -44,6 +44,15 @@ import javax.sql.DataSource;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import io.github.avinashio.ozhuku.persistence.PipelineConfigurationRepository;
+import io.github.avinashio.ozhuku.persistence.postgres.PostgresPipelineConfigurationRepository;
+import io.github.avinashio.ozhuku.application.pipeline.PipelineConfigurationResolutionService;
+import io.github.avinashio.ozhuku.application.pipeline.PipelinePlanResolver;
+import io.github.avinashio.ozhuku.application.pipeline.ConfiguredPipelineExecutionService;
+import io.github.avinashio.ozhuku.application.pipeline.PipelineConfigurationResolutionService;
+import io.github.avinashio.ozhuku.application.pipeline.PipelinePlanResolver;
+import io.github.avinashio.ozhuku.persistence.PipelineConfigurationRepository;
+import io.github.avinashio.ozhuku.persistence.postgres.PostgresPipelineConfigurationRepository;
 
 @Configuration
 public class RuntimeConfiguration {
@@ -261,4 +270,39 @@ public class RuntimeConfiguration {
         return new PipelineExecutionService(
                 executionRunService);
     }
+
+    @Bean
+    public PipelineConfigurationRepository pipelineConfigurationRepository(
+            final DataSource dataSource) {
+        return new PostgresPipelineConfigurationRepository(dataSource);
+    }
+
+
+
+    @Bean
+    public PipelinePlanResolver pipelinePlanResolver() {
+        return new PipelinePlanResolver();
+    }
+
+    @Bean
+    public PipelineConfigurationResolutionService
+    pipelineConfigurationResolutionService(
+            final PipelineConfigurationRepository
+                    pipelineConfigurationRepository,
+            final PipelinePlanResolver pipelinePlanResolver) {
+        return new PipelineConfigurationResolutionService(
+                pipelineConfigurationRepository,
+                pipelinePlanResolver);
+    }
+
+    @Bean
+    public ConfiguredPipelineExecutionService configuredPipelineExecutionService(
+            final PipelineConfigurationResolutionService
+                    configurationResolutionService,
+            final PipelineExecutionService pipelineExecutionService) {
+        return new ConfiguredPipelineExecutionService(
+                configurationResolutionService,
+                pipelineExecutionService);
+    }
+
 }

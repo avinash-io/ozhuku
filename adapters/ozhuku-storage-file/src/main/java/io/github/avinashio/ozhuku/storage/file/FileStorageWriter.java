@@ -90,6 +90,8 @@ public final class FileStorageWriter implements StorageWriter {
                     "Destination parent directory is missing");
         }
 
+        Files.createDirectories(parent);
+
         final Path temporaryPath =
                 Files.createTempFile(
                         parent,
@@ -126,3 +128,4 @@ public final class FileStorageWriter implements StorageWriter {
         }
     }
 }
+
