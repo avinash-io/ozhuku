@@ -34,6 +34,19 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import io.github.avinashio.ozhuku.application.recovery.DestinationRecoveryUseCase;
+import io.github.avinashio.ozhuku.application.recovery.RecoveryDecision;
+import io.github.avinashio.ozhuku.application.recovery.RecoveryReason;
+import io.github.avinashio.ozhuku.application.recovery.RecoveryResult;
+import io.github.avinashio.ozhuku.domain.execution.CommitStatus;
+import io.github.avinashio.ozhuku.domain.execution.DestinationCommit;
+import io.github.avinashio.ozhuku.domain.execution.DestinationCommitReference;
+import io.github.avinashio.ozhuku.domain.execution.DestinationExecution;
+import io.github.avinashio.ozhuku.domain.execution.DestinationExecutionReference;
+import io.github.avinashio.ozhuku.domain.execution.DestinationExecutionStatus;
+import io.github.avinashio.ozhuku.persistence.DestinationCommitRepository;
+import io.github.avinashio.ozhuku.persistence.DestinationExecutionRepository;
+import java.time.Instant;
 
 @Testcontainers
 @SpringBootTest
@@ -56,6 +69,15 @@ class OzhukuServerApplicationTests {
 
     @Autowired
     private ExecutionRepository executionRepository;
+
+    @Autowired
+    private DestinationRecoveryUseCase destinationRecoveryUseCase;
+
+    @Autowired
+    private DestinationExecutionRepository destinationExecutionRepository;
+
+    @Autowired
+    private DestinationCommitRepository destinationCommitRepository;
 
     @BeforeAll
     static void setUpStorageRoot() throws IOException {
@@ -190,5 +212,91 @@ class OzhukuServerApplicationTests {
         assertEquals(
                 "Ozhuku runtime integration test",
                 Files.readString(destinationPath));
+    }
+
+    @Test
+    void shouldRecoverDestinationWhenCommitIsNotConfirmed() {
+        final ExecutionId executionId =
+                new ExecutionId("recovery-execution-not-committed");
+
+        final ResourceId resourceId =
+                new ResourceId("recovery-destination-not-committed");
+
+        final DestinationExecutionReference reference =
+                new DestinationExecutionReference(
+                        executionId,
+                        resourceId);
+
+        final DestinationExecution destinationExecution =
+                DestinationExecution.rehydrate(
+                        reference,
+                        DestinationExecutionStatus.FAILED,
+                        Instant.parse("2026-09-28T00:00:00Z"),
+                        Instant.parse("2026-09-28T00:00:10Z"));
+
+        destinationExecutionRepository.save(
+                destinationExecution);
+
+        final DestinationCommitReference commitReference =
+                new DestinationCommitReference(reference);
+
+        destinationCommitRepository.save(
+                DestinationCommit.notCommitted(
+                        commitReference));
+
+        final RecoveryResult result =
+                destinationRecoveryUseCase.execute(
+                        reference);
+
+        assertEquals(
+                RecoveryDecision.RETRY,
+                result.decision());
+
+        assertEquals(
+                RecoveryReason.COMMIT_NOT_CONFIRMED,
+                result.reason());
+    }
+
+    @Test
+    void shouldRemainUnresolvedWhenUnknownCommitCannotBeConfirmed() {
+        final ExecutionId executionId =
+                new ExecutionId("recovery-execution-unknown");
+
+        final ResourceId resourceId =
+                new ResourceId("recovery-destination-unknown");
+
+        final DestinationExecutionReference reference =
+                new DestinationExecutionReference(
+                        executionId,
+                        resourceId);
+
+        final DestinationExecution destinationExecution =
+                DestinationExecution.rehydrate(
+                        reference,
+                        DestinationExecutionStatus.FAILED,
+                        Instant.parse("2026-09-28T00:01:00Z"),
+                        Instant.parse("2026-09-28T00:01:10Z"));
+
+        destinationExecutionRepository.save(
+                destinationExecution);
+
+        final DestinationCommitReference commitReference =
+                new DestinationCommitReference(reference);
+
+        destinationCommitRepository.save(
+                DestinationCommit.unknown(
+                        commitReference));
+
+        final RecoveryResult result =
+                destinationRecoveryUseCase.execute(
+                        reference);
+
+        assertEquals(
+                RecoveryDecision.UNRESOLVED,
+                result.decision());
+
+        assertEquals(
+                RecoveryReason.DESTINATION_OUTCOME_UNKNOWN,
+                result.reason());
     }
 }

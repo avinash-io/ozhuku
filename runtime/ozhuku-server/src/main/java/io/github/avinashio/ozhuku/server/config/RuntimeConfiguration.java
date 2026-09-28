@@ -45,13 +45,15 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import io.github.avinashio.ozhuku.persistence.PipelineConfigurationRepository;
-import io.github.avinashio.ozhuku.persistence.postgres.PostgresPipelineConfigurationRepository;
 import io.github.avinashio.ozhuku.application.pipeline.PipelineConfigurationResolutionService;
-import io.github.avinashio.ozhuku.application.pipeline.PipelinePlanResolver;
 import io.github.avinashio.ozhuku.application.pipeline.ConfiguredPipelineExecutionService;
 import io.github.avinashio.ozhuku.application.pipeline.PipelineConfigurationResolutionService;
 import io.github.avinashio.ozhuku.application.pipeline.PipelinePlanResolver;
-import io.github.avinashio.ozhuku.persistence.PipelineConfigurationRepository;
+import io.github.avinashio.ozhuku.application.recovery.DestinationExecutionRecoveryPolicy;
+import io.github.avinashio.ozhuku.application.recovery.DestinationRecoveryDecider;
+import io.github.avinashio.ozhuku.application.recovery.DestinationRecoveryService;
+import io.github.avinashio.ozhuku.application.recovery.DestinationRecoveryUseCase;
+import io.github.avinashio.ozhuku.application.recovery.PersistenceDestinationOutcomeInspector;
 import io.github.avinashio.ozhuku.persistence.postgres.PostgresPipelineConfigurationRepository;
 
 @Configuration
@@ -303,6 +305,61 @@ public class RuntimeConfiguration {
         return new ConfiguredPipelineExecutionService(
                 configurationResolutionService,
                 pipelineExecutionService);
+    }
+
+    @Bean
+    public DestinationExecutionRecoveryPolicy
+    destinationExecutionRecoveryPolicy() {
+        return new DestinationExecutionRecoveryPolicy();
+    }
+
+    @Bean
+    public PersistenceDestinationOutcomeInspector
+    destinationOutcomeInspector(
+            final DestinationCommitRepository
+                    destinationCommitRepository) {
+
+        return new PersistenceDestinationOutcomeInspector(
+                destinationCommitRepository);
+    }
+
+    @Bean
+    public DestinationRecoveryDecider
+    destinationRecoveryDecider(
+            final PersistenceDestinationOutcomeInspector
+                    outcomeInspector) {
+
+        return new DestinationRecoveryDecider(
+                outcomeInspector);
+    }
+
+    @Bean
+    public DestinationRecoveryService
+    destinationRecoveryService(
+            final DestinationExecutionRepository
+                    destinationExecutionRepository,
+            final DestinationCommitRepository
+                    destinationCommitRepository,
+            final DestinationExecutionRecoveryPolicy
+                    executionRecoveryPolicy,
+            final DestinationRecoveryDecider
+                    recoveryDecider) {
+
+        return new DestinationRecoveryService(
+                destinationExecutionRepository,
+                destinationCommitRepository,
+                executionRecoveryPolicy,
+                recoveryDecider);
+    }
+
+    @Bean
+    public DestinationRecoveryUseCase
+    destinationRecoveryUseCase(
+            final DestinationRecoveryService
+                    recoveryDecisionProvider) {
+
+        return new DestinationRecoveryUseCase(
+                recoveryDecisionProvider);
     }
 
 }
