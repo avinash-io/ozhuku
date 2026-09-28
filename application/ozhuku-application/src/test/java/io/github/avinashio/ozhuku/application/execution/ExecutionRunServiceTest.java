@@ -3,24 +3,35 @@ package io.github.avinashio.ozhuku.application.execution;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import io.github.avinashio.ozhuku.application.deduplication.DeduplicationService;
+import io.github.avinashio.ozhuku.application.deduplication.ExecutionDeduplicationService;
 import io.github.avinashio.ozhuku.application.initialization.ExecutionInitializationService;
 import io.github.avinashio.ozhuku.application.orchestration.ExecutionOrchestrationService;
 import io.github.avinashio.ozhuku.application.processing.ExecutionProcessingService;
-import io.github.avinashio.ozhuku.application.processing.RecordProcessingRequest;
-import io.github.avinashio.ozhuku.application.processing.ResourceTransferRequest;
 import io.github.avinashio.ozhuku.application.record.RecordProcessingService;
+import io.github.avinashio.ozhuku.application.source.SourceFingerprintService;
+import io.github.avinashio.ozhuku.application.source.SourceIdentityService;
 import io.github.avinashio.ozhuku.application.transfer.ResourceTransferService;
+import io.github.avinashio.ozhuku.domain.deduplication.DeduplicationEvaluator;
+import io.github.avinashio.ozhuku.domain.deduplication.DuplicatePolicy;
+import io.github.avinashio.ozhuku.domain.deduplication.ProcessingRecord;
 import io.github.avinashio.ozhuku.domain.delivery.ConflictBehavior;
 import io.github.avinashio.ozhuku.domain.delivery.DeliveryPolicy;
 import io.github.avinashio.ozhuku.domain.execution.Execution;
 import io.github.avinashio.ozhuku.domain.execution.ExecutionReference;
+import io.github.avinashio.ozhuku.domain.execution.FlowExecution;
+import io.github.avinashio.ozhuku.domain.execution.SourceExecution;
+import io.github.avinashio.ozhuku.domain.execution.DestinationExecution;
 import io.github.avinashio.ozhuku.domain.flow.Flow;
 import io.github.avinashio.ozhuku.domain.flow.FlowMode;
 import io.github.avinashio.ozhuku.domain.identity.ExecutionId;
 import io.github.avinashio.ozhuku.domain.identity.FlowId;
 import io.github.avinashio.ozhuku.domain.identity.PipelineId;
 import io.github.avinashio.ozhuku.domain.identity.PipelineVersion;
+import io.github.avinashio.ozhuku.domain.identity.ProcessingIdentity;
 import io.github.avinashio.ozhuku.domain.identity.ResourceId;
+import io.github.avinashio.ozhuku.domain.identity.SourceFingerprint;
+import io.github.avinashio.ozhuku.domain.identity.SourceIdentity;
 import io.github.avinashio.ozhuku.domain.pipeline.PipelineDefinition;
 import io.github.avinashio.ozhuku.domain.pipeline.PipelinePlan;
 import io.github.avinashio.ozhuku.domain.resource.Resource;
@@ -31,12 +42,16 @@ import io.github.avinashio.ozhuku.format.FormatWriter;
 import io.github.avinashio.ozhuku.persistence.DestinationExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.ExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.FlowExecutionRepository;
+import io.github.avinashio.ozhuku.persistence.ProcessingRecordRepository;
 import io.github.avinashio.ozhuku.persistence.SourceExecutionRepository;
 import io.github.avinashio.ozhuku.storage.StorageOutput;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.time.Clock;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -207,20 +222,27 @@ class ExecutionRunServiceTest {
     private ExecutionProcessingCoordinator
     createProcessingCoordinator() {
 
-        return new ExecutionProcessingCoordinator(
+        final Clock clock =
+                Clock.systemUTC();
+
+        final ExecutionOrchestrationService
+                orchestrationService =
                 new ExecutionOrchestrationService(
                         new ExecutionLifecycleService(
                                 executionRepository,
-                                java.time.Clock.systemUTC()),
+                                clock),
                         new FlowExecutionLifecycleService(
                                 flowExecutionRepository,
-                                java.time.Clock.systemUTC()),
+                                clock),
                         new SourceExecutionLifecycleService(
                                 sourceExecutionRepository,
-                                java.time.Clock.systemUTC()),
+                                clock),
                         new DestinationExecutionLifecycleService(
                                 destinationExecutionRepository,
-                                java.time.Clock.systemUTC())),
+                                clock));
+
+        final ExecutionProcessingService
+                processingService =
                 new ExecutionProcessingService(
                         new ResourceTransferService(
                                 resource ->
@@ -228,7 +250,7 @@ class ExecutionRunServiceTest {
                                                 "test".getBytes()),
                                 (destination, content, conflictBehavior) ->
                                         content.transferTo(
-                                                java.io.OutputStream
+                                                OutputStream
                                                         .nullOutputStream())),
                         new RecordProcessingService(
                                 resource ->
@@ -250,10 +272,52 @@ class ExecutionRunServiceTest {
                                             @Override
                                             public void close() {
                                             }
-                                        })),
+                                        }));
+
+        final ExecutionResourceValidator
+                executionResourceValidator =
                 new ExecutionResourceValidator(
                         sourceExecutionRepository,
-                        destinationExecutionRepository));
+                        destinationExecutionRepository);
+
+        final InMemoryProcessingRecordRepository
+                processingRecordRepository =
+                new InMemoryProcessingRecordRepository();
+
+        final SourceIdentityService
+                sourceIdentityService =
+                new SourceIdentityService(
+                        resource ->
+                                new SourceIdentity(
+                                        resource.location().value()));
+
+        final SourceFingerprintService
+                sourceFingerprintService =
+                new SourceFingerprintService(
+                        resource ->
+                                new SourceFingerprint(
+                                        "test-fingerprint"));
+
+        final DeduplicationService
+                deduplicationService =
+                new DeduplicationService(
+                        processingRecordRepository,
+                        new DeduplicationEvaluator());
+
+        final ExecutionDeduplicationService
+                executionDeduplicationService =
+                new ExecutionDeduplicationService(
+                        sourceIdentityService,
+                        sourceFingerprintService,
+                        deduplicationService);
+
+        return new ExecutionProcessingCoordinator(
+                orchestrationService,
+                processingService,
+                executionResourceValidator,
+                executionDeduplicationService,
+                processingRecordRepository,
+                clock);
     }
 
     private static PipelinePlan pipelinePlan(
@@ -271,7 +335,8 @@ class ExecutionRunServiceTest {
                 resource("source"),
                 resource("destination"),
                 new DeliveryPolicy(
-                        ConflictBehavior.REPLACE));
+                        ConflictBehavior.REPLACE),
+                DuplicatePolicy.SKIP_IF_PROCESSED);
     }
 
     private static Resource resource(
@@ -377,13 +442,10 @@ class ExecutionRunServiceTest {
     private static final class InMemoryFlowExecutionRepository
             implements FlowExecutionRepository {
 
-        private io.github.avinashio.ozhuku.domain.execution.FlowExecution
-                flowExecution;
+        private FlowExecution flowExecution;
 
         @Override
-        public Optional<
-                io.github.avinashio.ozhuku.domain.execution.FlowExecution>
-        findById(
+        public Optional<FlowExecution> findById(
                 final ExecutionId executionId,
                 final FlowId flowId) {
 
@@ -396,8 +458,7 @@ class ExecutionRunServiceTest {
 
         @Override
         public void save(
-                final io.github.avinashio.ozhuku.domain.execution.FlowExecution
-                        flowExecution) {
+                final FlowExecution flowExecution) {
 
             this.flowExecution = flowExecution;
         }
@@ -406,13 +467,10 @@ class ExecutionRunServiceTest {
     private static final class InMemorySourceExecutionRepository
             implements SourceExecutionRepository {
 
-        private io.github.avinashio.ozhuku.domain.execution.SourceExecution
-                sourceExecution;
+        private SourceExecution sourceExecution;
 
         @Override
-        public Optional<
-                io.github.avinashio.ozhuku.domain.execution.SourceExecution>
-        findById(
+        public Optional<SourceExecution> findById(
                 final ExecutionId executionId,
                 final ResourceId resourceId) {
 
@@ -425,8 +483,7 @@ class ExecutionRunServiceTest {
 
         @Override
         public void save(
-                final io.github.avinashio.ozhuku.domain.execution.SourceExecution
-                        sourceExecution) {
+                final SourceExecution sourceExecution) {
 
             this.sourceExecution = sourceExecution;
         }
@@ -435,13 +492,10 @@ class ExecutionRunServiceTest {
     private static final class InMemoryDestinationExecutionRepository
             implements DestinationExecutionRepository {
 
-        private io.github.avinashio.ozhuku.domain.execution.DestinationExecution
-                destinationExecution;
+        private DestinationExecution destinationExecution;
 
         @Override
-        public Optional<
-                io.github.avinashio.ozhuku.domain.execution.DestinationExecution>
-        findById(
+        public Optional<DestinationExecution> findById(
                 final ExecutionId executionId,
                 final ResourceId resourceId) {
 
@@ -454,10 +508,33 @@ class ExecutionRunServiceTest {
 
         @Override
         public void save(
-                final io.github.avinashio.ozhuku.domain.execution.DestinationExecution
-                        destinationExecution) {
+                final DestinationExecution destinationExecution) {
 
             this.destinationExecution = destinationExecution;
+        }
+    }
+
+    private static final class InMemoryProcessingRecordRepository
+            implements ProcessingRecordRepository {
+
+        private final Map<ProcessingIdentity, ProcessingRecord> records =
+                new HashMap<>();
+
+        @Override
+        public Optional<ProcessingRecord> findByIdentity(
+                final ProcessingIdentity identity) {
+
+            return Optional.ofNullable(
+                    records.get(identity));
+        }
+
+        @Override
+        public void save(
+                final ProcessingRecord record) {
+
+            records.put(
+                    record.identity(),
+                    record);
         }
     }
 }

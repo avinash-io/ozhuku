@@ -48,6 +48,7 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import io.github.avinashio.ozhuku.domain.deduplication.DuplicatePolicy;
 
 @Testcontainers
 @SpringBootTest
@@ -195,7 +196,8 @@ class OzhukuServerApplicationTests {
                         source,
                         destination,
                         new DeliveryPolicy(
-                                ConflictBehavior.REPLACE));
+                                ConflictBehavior.REPLACE),
+                        DuplicatePolicy.SKIP_IF_PROCESSED);
 
         pipelineConfigurationRepository.save(
                 configuration);
@@ -394,7 +396,8 @@ class OzhukuServerApplicationTests {
                         source,
                         destination,
                         new DeliveryPolicy(
-                                ConflictBehavior.REPLACE));
+                                ConflictBehavior.REPLACE),
+                        DuplicatePolicy.SKIP_IF_PROCESSED);
 
         pipelineConfigurationRepository.save(
                 configuration);

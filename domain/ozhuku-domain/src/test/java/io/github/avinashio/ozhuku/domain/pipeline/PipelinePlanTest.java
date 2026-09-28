@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import io.github.avinashio.ozhuku.domain.delivery.ConflictBehavior;
 import io.github.avinashio.ozhuku.domain.delivery.DeliveryPolicy;
+import io.github.avinashio.ozhuku.domain.deduplication.DuplicatePolicy;
 import io.github.avinashio.ozhuku.domain.flow.Flow;
 import io.github.avinashio.ozhuku.domain.flow.FlowMode;
 import io.github.avinashio.ozhuku.domain.identity.FlowId;
@@ -42,19 +43,24 @@ class PipelinePlanTest {
         final DeliveryPolicy deliveryPolicy =
                 new DeliveryPolicy(ConflictBehavior.REPLACE);
 
+        final DuplicatePolicy duplicatePolicy =
+                DuplicatePolicy.SKIP_IF_PROCESSED;
+
         final PipelinePlan plan =
                 new PipelinePlan(
                         definition,
                         flow,
                         source,
                         destination,
-                        deliveryPolicy);
+                        deliveryPolicy,
+                        duplicatePolicy);
 
         assertEquals(definition, plan.pipelineDefinition());
         assertEquals(flow, plan.flow());
         assertEquals(source, plan.source());
         assertEquals(destination, plan.destination());
         assertEquals(deliveryPolicy, plan.deliveryPolicy());
+        assertEquals(duplicatePolicy, plan.duplicatePolicy());
     }
 
     @Test
@@ -66,7 +72,8 @@ class PipelinePlanTest {
                         flow(),
                         resource("source"),
                         resource("destination"),
-                        deliveryPolicy()));
+                        deliveryPolicy(),
+                        DuplicatePolicy.SKIP_IF_PROCESSED));
     }
 
     @Test
@@ -78,7 +85,8 @@ class PipelinePlanTest {
                         null,
                         resource("source"),
                         resource("destination"),
-                        deliveryPolicy()));
+                        deliveryPolicy(),
+                        DuplicatePolicy.SKIP_IF_PROCESSED));
     }
 
     @Test
@@ -90,7 +98,8 @@ class PipelinePlanTest {
                         flow(),
                         null,
                         resource("destination"),
-                        deliveryPolicy()));
+                        deliveryPolicy(),
+                        DuplicatePolicy.SKIP_IF_PROCESSED));
     }
 
     @Test
@@ -102,7 +111,8 @@ class PipelinePlanTest {
                         flow(),
                         resource("source"),
                         null,
-                        deliveryPolicy()));
+                        deliveryPolicy(),
+                        DuplicatePolicy.SKIP_IF_PROCESSED));
     }
 
     @Test
@@ -114,6 +124,20 @@ class PipelinePlanTest {
                         flow(),
                         resource("source"),
                         resource("destination"),
+                        null,
+                        DuplicatePolicy.SKIP_IF_PROCESSED));
+    }
+
+    @Test
+    void shouldRejectNullDuplicatePolicy() {
+        assertThrows(
+                ValidationException.class,
+                () -> new PipelinePlan(
+                        pipelineDefinition(),
+                        flow(),
+                        resource("source"),
+                        resource("destination"),
+                        deliveryPolicy(),
                         null));
     }
 
@@ -125,7 +149,8 @@ class PipelinePlanTest {
                         flow(),
                         resource("source"),
                         resource("destination"),
-                        deliveryPolicy());
+                        deliveryPolicy(),
+                        DuplicatePolicy.SKIP_IF_PROCESSED);
 
         final PipelinePlan second =
                 new PipelinePlan(
@@ -133,7 +158,8 @@ class PipelinePlanTest {
                         flow(),
                         resource("source"),
                         resource("destination"),
-                        deliveryPolicy());
+                        deliveryPolicy(),
+                        DuplicatePolicy.SKIP_IF_PROCESSED);
 
         assertEquals(first, second);
         assertEquals(first.hashCode(), second.hashCode());

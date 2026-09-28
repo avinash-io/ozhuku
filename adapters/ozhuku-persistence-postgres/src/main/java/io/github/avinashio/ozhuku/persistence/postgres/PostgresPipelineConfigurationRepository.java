@@ -1,5 +1,6 @@
 package io.github.avinashio.ozhuku.persistence.postgres;
 
+import io.github.avinashio.ozhuku.domain.deduplication.DuplicatePolicy;
 import io.github.avinashio.ozhuku.domain.delivery.ConflictBehavior;
 import io.github.avinashio.ozhuku.domain.delivery.DeliveryPolicy;
 import io.github.avinashio.ozhuku.domain.flow.Flow;
@@ -43,7 +44,8 @@ public final class PostgresPipelineConfigurationRepository
                 source_location,
                 destination_resource_id,
                 destination_location,
-                conflict_behavior
+                conflict_behavior,
+                duplicate_policy
             FROM pipeline_configurations
             WHERE pipeline_id = ?
               AND pipeline_version = ?
@@ -61,9 +63,10 @@ public final class PostgresPipelineConfigurationRepository
                 source_location,
                 destination_resource_id,
                 destination_location,
-                conflict_behavior
+                conflict_behavior,
+                duplicate_policy
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """;
 
     private final DataSource dataSource;
@@ -130,6 +133,7 @@ public final class PostgresPipelineConfigurationRepository
         final Resource source = configuration.source();
         final Resource destination = configuration.destination();
         final DeliveryPolicy deliveryPolicy = configuration.deliveryPolicy();
+        final DuplicatePolicy duplicatePolicy = configuration.duplicatePolicy();
 
         try (Connection connection = dataSource.getConnection();
              PreparedStatement statement = connection.prepareStatement(INSERT_SQL)) {
@@ -149,6 +153,7 @@ public final class PostgresPipelineConfigurationRepository
             statement.setString(10, destination.location().value());
 
             statement.setString(11, deliveryPolicy.conflictBehavior().name());
+            statement.setString(12, duplicatePolicy.name());
 
             statement.executeUpdate();
         } catch (SQLException exception) {
@@ -188,11 +193,16 @@ public final class PostgresPipelineConfigurationRepository
                         ConflictBehavior.valueOf(
                                 resultSet.getString("conflict_behavior")));
 
+        final DuplicatePolicy duplicatePolicy =
+                DuplicatePolicy.valueOf(
+                        resultSet.getString("duplicate_policy"));
+
         return new PipelineConfiguration(
                 pipelineDefinition,
                 flow,
                 source,
                 destination,
-                deliveryPolicy);
+                deliveryPolicy,
+                duplicatePolicy);
     }
 }

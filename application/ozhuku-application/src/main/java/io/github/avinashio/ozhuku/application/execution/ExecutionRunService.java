@@ -6,12 +6,11 @@ import io.github.avinashio.ozhuku.application.processing.ResourceTransferRequest
 import io.github.avinashio.ozhuku.domain.execution.ExecutionReference;
 import io.github.avinashio.ozhuku.domain.identity.FlowId;
 import io.github.avinashio.ozhuku.domain.identity.ResourceId;
-import java.io.IOException;
-import java.util.Objects;
-
 import io.github.avinashio.ozhuku.domain.pipeline.PipelinePlan;
 import io.github.avinashio.ozhuku.format.FormatReader;
 import io.github.avinashio.ozhuku.format.FormatWriter;
+import java.io.IOException;
+import java.util.Objects;
 
 public final class ExecutionRunService {
 
@@ -38,79 +37,6 @@ public final class ExecutionRunService {
 
     public void runResourceTransfer(
             final ExecutionReference executionReference,
-            final FlowId flowId,
-            final ResourceTransferRequest request)
-            throws IOException {
-
-        Objects.requireNonNull(
-                executionReference,
-                "executionReference must not be null");
-
-        Objects.requireNonNull(
-                flowId,
-                "flowId must not be null");
-
-        Objects.requireNonNull(
-                request,
-                "request must not be null");
-
-        initialize(
-                executionReference,
-                flowId,
-                request.source().id(),
-                request.destination().id());
-
-        executionProcessingCoordinator.processResourceTransfer(
-                executionReference.executionId(),
-                flowId,
-                request);
-    }
-
-    public void runRecordProcessing(
-            final ExecutionReference executionReference,
-            final FlowId flowId,
-            final RecordProcessingRequest request)
-            throws IOException {
-
-        Objects.requireNonNull(
-                executionReference,
-                "executionReference must not be null");
-
-        Objects.requireNonNull(
-                flowId,
-                "flowId must not be null");
-
-        Objects.requireNonNull(
-                request,
-                "request must not be null");
-
-        initialize(
-                executionReference,
-                flowId,
-                request.source().id(),
-                request.destination().id());
-
-        executionProcessingCoordinator.processRecordProcessing(
-                executionReference.executionId(),
-                flowId,
-                request);
-    }
-
-    private void initialize(
-            final ExecutionReference executionReference,
-            final FlowId flowId,
-            final ResourceId sourceResourceId,
-            final ResourceId destinationResourceId) {
-
-        executionInitializationService.initialize(
-                executionReference,
-                flowId,
-                sourceResourceId,
-                destinationResourceId);
-    }
-
-    public void runResourceTransfer(
-            final ExecutionReference executionReference,
             final PipelinePlan pipelinePlan)
             throws IOException {
 
@@ -128,9 +54,15 @@ public final class ExecutionRunService {
                         pipelinePlan.destination(),
                         pipelinePlan.deliveryPolicy());
 
-        runResourceTransfer(
+        initialize(
                 executionReference,
                 pipelinePlan.flow().id(),
+                request.source().id(),
+                request.destination().id());
+
+        executionProcessingCoordinator.processResourceTransfer(
+                executionReference,
+                pipelinePlan,
                 request);
     }
 
@@ -165,9 +97,28 @@ public final class ExecutionRunService {
                         formatReader,
                         formatWriter);
 
-        runRecordProcessing(
+        initialize(
                 executionReference,
                 pipelinePlan.flow().id(),
+                request.source().id(),
+                request.destination().id());
+
+        executionProcessingCoordinator.processRecordProcessing(
+                executionReference,
+                pipelinePlan,
                 request);
+    }
+
+    private void initialize(
+            final ExecutionReference executionReference,
+            final FlowId flowId,
+            final ResourceId sourceResourceId,
+            final ResourceId destinationResourceId) {
+
+        executionInitializationService.initialize(
+                executionReference,
+                flowId,
+                sourceResourceId,
+                destinationResourceId);
     }
 }

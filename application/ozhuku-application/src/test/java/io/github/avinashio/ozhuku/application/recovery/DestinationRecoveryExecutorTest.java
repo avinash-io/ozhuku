@@ -2,7 +2,6 @@ package io.github.avinashio.ozhuku.application.recovery;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-
 import io.github.avinashio.ozhuku.application.pipeline.PipelineConfigurationResolutionService;
 import io.github.avinashio.ozhuku.application.pipeline.PipelinePlanResolver;
 import io.github.avinashio.ozhuku.application.transfer.ResourceTransferService;
@@ -41,6 +40,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
+import io.github.avinashio.ozhuku.domain.deduplication.DuplicatePolicy;
 
 class DestinationRecoveryExecutorTest {
 
@@ -508,7 +508,8 @@ class DestinationRecoveryExecutorTest {
                 resource("source"),
                 resource("destination"),
                 new DeliveryPolicy(
-                        ConflictBehavior.REPLACE));
+                        ConflictBehavior.REPLACE),
+                DuplicatePolicy.SKIP_IF_PROCESSED);
     }
 
     private static Resource resource(

@@ -1,6 +1,7 @@
 package io.github.avinashio.ozhuku.domain.pipeline;
 
 import io.github.avinashio.ozhuku.domain.delivery.DeliveryPolicy;
+import io.github.avinashio.ozhuku.domain.deduplication.DuplicatePolicy;
 import io.github.avinashio.ozhuku.domain.flow.Flow;
 import io.github.avinashio.ozhuku.domain.resource.Resource;
 import io.github.avinashio.ozhuku.foundation.validation.Validation;
@@ -9,10 +10,10 @@ import java.util.Objects;
 /**
  * Immutable executable plan resolved from a pipeline definition and flow.
  *
- * <p>The plan contains the concrete resources and delivery policy required
- * to execute a flow. Infrastructure implementations, credentials, format
- * readers, format writers, and transport implementations remain outside the
- * domain plan.</p>
+ * <p>The plan contains the concrete resources, delivery policy, and duplicate
+ * processing policy required to execute a flow. Infrastructure implementations,
+ * credentials, format readers, format writers, and transport implementations
+ * remain outside the domain plan.</p>
  */
 public final class PipelinePlan {
 
@@ -21,6 +22,7 @@ public final class PipelinePlan {
     private final Resource source;
     private final Resource destination;
     private final DeliveryPolicy deliveryPolicy;
+    private final DuplicatePolicy duplicatePolicy;
 
     /**
      * Creates an executable pipeline plan.
@@ -30,13 +32,15 @@ public final class PipelinePlan {
      * @param source resolved source resource
      * @param destination resolved destination resource
      * @param deliveryPolicy destination delivery policy
+     * @param duplicatePolicy duplicate processing policy
      */
     public PipelinePlan(
             final PipelineDefinition pipelineDefinition,
             final Flow flow,
             final Resource source,
             final Resource destination,
-            final DeliveryPolicy deliveryPolicy) {
+            final DeliveryPolicy deliveryPolicy,
+            final DuplicatePolicy duplicatePolicy) {
 
         this.pipelineDefinition = Validation.requireNonNull(
                 pipelineDefinition,
@@ -57,6 +61,10 @@ public final class PipelinePlan {
         this.deliveryPolicy = Validation.requireNonNull(
                 deliveryPolicy,
                 "Delivery policy must not be null");
+
+        this.duplicatePolicy = Validation.requireNonNull(
+                duplicatePolicy,
+                "Duplicate policy must not be null");
     }
 
     /**
@@ -104,6 +112,15 @@ public final class PipelinePlan {
         return deliveryPolicy;
     }
 
+    /**
+     * Returns the duplicate processing policy.
+     *
+     * @return duplicate processing policy
+     */
+    public DuplicatePolicy duplicatePolicy() {
+        return duplicatePolicy;
+    }
+
     @Override
     public boolean equals(final Object other) {
         if (this == other) {
@@ -120,7 +137,8 @@ public final class PipelinePlan {
                 && flow.equals(that.flow)
                 && source.equals(that.source)
                 && destination.equals(that.destination)
-                && deliveryPolicy.equals(that.deliveryPolicy);
+                && deliveryPolicy.equals(that.deliveryPolicy)
+                && duplicatePolicy.equals(that.duplicatePolicy);
     }
 
     @Override
@@ -130,7 +148,8 @@ public final class PipelinePlan {
                 flow,
                 source,
                 destination,
-                deliveryPolicy);
+                deliveryPolicy,
+                duplicatePolicy);
     }
 
     @Override
@@ -141,6 +160,7 @@ public final class PipelinePlan {
                 + ", source=" + source
                 + ", destination=" + destination
                 + ", deliveryPolicy=" + deliveryPolicy
+                + ", duplicatePolicy=" + duplicatePolicy
                 + '}';
     }
 }

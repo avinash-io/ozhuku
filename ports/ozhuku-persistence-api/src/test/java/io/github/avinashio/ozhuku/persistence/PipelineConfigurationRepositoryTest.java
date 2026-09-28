@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import io.github.avinashio.ozhuku.domain.deduplication.DuplicatePolicy;
 
 class PipelineConfigurationRepositoryTest {
 
@@ -132,7 +133,8 @@ class PipelineConfigurationRepositoryTest {
                 new Resource(
                         new ResourceId("destination-" + pipelineId + "-" + version),
                         new ResourceLocation("file:///destination")),
-                new DeliveryPolicy(ConflictBehavior.REPLACE));
+                new DeliveryPolicy(ConflictBehavior.REPLACE),
+                DuplicatePolicy.SKIP_IF_PROCESSED);
     }
 
     private static final class InMemoryPipelineConfigurationRepository

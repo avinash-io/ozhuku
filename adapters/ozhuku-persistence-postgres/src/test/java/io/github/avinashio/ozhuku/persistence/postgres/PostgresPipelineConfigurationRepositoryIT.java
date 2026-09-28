@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.avinashio.ozhuku.domain.deduplication.DuplicatePolicy;
 import io.github.avinashio.ozhuku.domain.delivery.ConflictBehavior;
 import io.github.avinashio.ozhuku.domain.delivery.DeliveryPolicy;
 import io.github.avinashio.ozhuku.domain.flow.Flow;
@@ -27,6 +28,9 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+/**
+ * Integration tests for PostgreSQL pipeline configuration persistence.
+ */
 @Testcontainers
 class PostgresPipelineConfigurationRepositoryIT {
 
@@ -142,6 +146,10 @@ class PostgresPipelineConfigurationRepositoryIT {
         assertEquals(
                 ConflictBehavior.REPLACE,
                 result.deliveryPolicy().conflictBehavior());
+
+        assertEquals(
+                DuplicatePolicy.SKIP_IF_PROCESSED,
+                result.duplicatePolicy());
     }
 
     @Test
@@ -287,6 +295,7 @@ class PostgresPipelineConfigurationRepositoryIT {
                 flow,
                 source,
                 destination,
-                deliveryPolicy);
+                deliveryPolicy,
+                DuplicatePolicy.SKIP_IF_PROCESSED);
     }
 }

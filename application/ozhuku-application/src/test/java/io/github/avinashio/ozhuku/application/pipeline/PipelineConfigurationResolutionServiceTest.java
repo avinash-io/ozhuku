@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import io.github.avinashio.ozhuku.domain.delivery.ConflictBehavior;
 import io.github.avinashio.ozhuku.domain.delivery.DeliveryPolicy;
+import io.github.avinashio.ozhuku.domain.deduplication.DuplicatePolicy;
 import io.github.avinashio.ozhuku.domain.flow.Flow;
 import io.github.avinashio.ozhuku.domain.flow.FlowMode;
 import io.github.avinashio.ozhuku.domain.identity.FlowId;
@@ -62,6 +63,9 @@ class PipelineConfigurationResolutionServiceTest {
         assertEquals(
                 configuration.deliveryPolicy(),
                 result.deliveryPolicy());
+        assertEquals(
+                configuration.duplicatePolicy(),
+                result.duplicatePolicy());
     }
 
     @Test
@@ -89,6 +93,9 @@ class PipelineConfigurationResolutionServiceTest {
         assertEquals(
                 versionTwo.pipelineDefinition(),
                 result.pipelineDefinition());
+        assertEquals(
+                versionTwo.duplicatePolicy(),
+                result.duplicatePolicy());
     }
 
     @Test
@@ -160,12 +167,16 @@ class PipelineConfigurationResolutionServiceTest {
         final DeliveryPolicy deliveryPolicy =
                 new DeliveryPolicy(ConflictBehavior.REPLACE);
 
+        final DuplicatePolicy duplicatePolicy =
+                DuplicatePolicy.SKIP_IF_PROCESSED;
+
         return new PipelineConfiguration(
                 pipelineDefinition,
                 flow,
                 source,
                 destination,
-                deliveryPolicy);
+                deliveryPolicy,
+                duplicatePolicy);
     }
 
     private static final class InMemoryPipelineConfigurationRepository

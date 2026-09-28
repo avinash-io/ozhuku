@@ -1,12 +1,20 @@
 package io.github.avinashio.ozhuku.application.execution;
 
-import io.github.avinashio.ozhuku.application.orchestration.ExecutionOrchestrationService;
+import io.github.avinashio.ozhuku.application.deduplication.ExecutionDeduplicationService;
 import io.github.avinashio.ozhuku.application.processing.ExecutionProcessingService;
 import io.github.avinashio.ozhuku.application.processing.RecordProcessingRequest;
 import io.github.avinashio.ozhuku.application.processing.ResourceTransferRequest;
+import io.github.avinashio.ozhuku.application.orchestration.ExecutionOrchestrationService;
+import io.github.avinashio.ozhuku.domain.deduplication.DeduplicationDecision;
+import io.github.avinashio.ozhuku.domain.deduplication.ProcessingRecord;
+import io.github.avinashio.ozhuku.domain.execution.ExecutionReference;
 import io.github.avinashio.ozhuku.domain.identity.ExecutionId;
 import io.github.avinashio.ozhuku.domain.identity.FlowId;
+import io.github.avinashio.ozhuku.domain.pipeline.PipelinePlan;
+import io.github.avinashio.ozhuku.persistence.ProcessingRecordRepository;
 import java.io.IOException;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.Objects;
 
 public final class ExecutionProcessingCoordinator {
@@ -14,11 +22,17 @@ public final class ExecutionProcessingCoordinator {
     private final ExecutionOrchestrationService executionOrchestrationService;
     private final ExecutionProcessingService executionProcessingService;
     private final ExecutionResourceValidator executionResourceValidator;
+    private final ExecutionDeduplicationService executionDeduplicationService;
+    private final ProcessingRecordRepository processingRecordRepository;
+    private final Clock clock;
 
     public ExecutionProcessingCoordinator(
             final ExecutionOrchestrationService executionOrchestrationService,
             final ExecutionProcessingService executionProcessingService,
-            final ExecutionResourceValidator executionResourceValidator) {
+            final ExecutionResourceValidator executionResourceValidator,
+            final ExecutionDeduplicationService executionDeduplicationService,
+            final ProcessingRecordRepository processingRecordRepository,
+            final Clock clock) {
 
         this.executionOrchestrationService =
                 Objects.requireNonNull(
@@ -34,25 +48,46 @@ public final class ExecutionProcessingCoordinator {
                 Objects.requireNonNull(
                         executionResourceValidator,
                         "executionResourceValidator must not be null");
+
+        this.executionDeduplicationService =
+                Objects.requireNonNull(
+                        executionDeduplicationService,
+                        "executionDeduplicationService must not be null");
+
+        this.processingRecordRepository =
+                Objects.requireNonNull(
+                        processingRecordRepository,
+                        "processingRecordRepository must not be null");
+
+        this.clock =
+                Objects.requireNonNull(
+                        clock,
+                        "clock must not be null");
     }
 
     public void processResourceTransfer(
-            final ExecutionId executionId,
-            final FlowId flowId,
+            final ExecutionReference executionReference,
+            final PipelinePlan pipelinePlan,
             final ResourceTransferRequest request)
             throws IOException {
 
         Objects.requireNonNull(
-                executionId,
-                "executionId must not be null");
+                executionReference,
+                "executionReference must not be null");
 
         Objects.requireNonNull(
-                flowId,
-                "flowId must not be null");
+                pipelinePlan,
+                "pipelinePlan must not be null");
 
         Objects.requireNonNull(
                 request,
                 "request must not be null");
+
+        final ExecutionId executionId =
+                executionReference.executionId();
+
+        final FlowId flowId =
+                pipelinePlan.flow().id();
 
         executionResourceValidator.validate(
                 executionId,
@@ -66,9 +101,37 @@ public final class ExecutionProcessingCoordinator {
                 request.destination().id());
 
         try {
+            final ExecutionDeduplicationService.Result deduplicationResult =
+                    executionDeduplicationService.evaluate(
+                            executionReference,
+                            pipelinePlan,
+                            request.source());
+
+            if (deduplicationResult.decision()
+                    == DeduplicationDecision.SKIP) {
+
+                executionOrchestrationService.completeExecution(
+                        executionId,
+                        flowId,
+                        request.source().id(),
+                        request.destination().id());
+
+                return;
+            }
+
+            if (deduplicationResult.decision()
+                    == DeduplicationDecision.FAIL) {
+
+                throw new IllegalStateException(
+                        "Duplicate source detected for processing identity");
+            }
+
             executionProcessingService.processResourceTransfer(
                     executionId,
                     request);
+
+            saveProcessedRecord(
+                    deduplicationResult);
 
             executionOrchestrationService.completeExecution(
                     executionId,
@@ -95,22 +158,28 @@ public final class ExecutionProcessingCoordinator {
     }
 
     public void processRecordProcessing(
-            final ExecutionId executionId,
-            final FlowId flowId,
+            final ExecutionReference executionReference,
+            final PipelinePlan pipelinePlan,
             final RecordProcessingRequest request)
             throws IOException {
 
         Objects.requireNonNull(
-                executionId,
-                "executionId must not be null");
+                executionReference,
+                "executionReference must not be null");
 
         Objects.requireNonNull(
-                flowId,
-                "flowId must not be null");
+                pipelinePlan,
+                "pipelinePlan must not be null");
 
         Objects.requireNonNull(
                 request,
                 "request must not be null");
+
+        final ExecutionId executionId =
+                executionReference.executionId();
+
+        final FlowId flowId =
+                pipelinePlan.flow().id();
 
         executionResourceValidator.validate(
                 executionId,
@@ -124,9 +193,37 @@ public final class ExecutionProcessingCoordinator {
                 request.destination().id());
 
         try {
+            final ExecutionDeduplicationService.Result deduplicationResult =
+                    executionDeduplicationService.evaluate(
+                            executionReference,
+                            pipelinePlan,
+                            request.source());
+
+            if (deduplicationResult.decision()
+                    == DeduplicationDecision.SKIP) {
+
+                executionOrchestrationService.completeExecution(
+                        executionId,
+                        flowId,
+                        request.source().id(),
+                        request.destination().id());
+
+                return;
+            }
+
+            if (deduplicationResult.decision()
+                    == DeduplicationDecision.FAIL) {
+
+                throw new IllegalStateException(
+                        "Duplicate source detected for processing identity");
+            }
+
             executionProcessingService.processRecordProcessing(
                     executionId,
                     request);
+
+            saveProcessedRecord(
+                    deduplicationResult);
 
             executionOrchestrationService.completeExecution(
                     executionId,
@@ -150,6 +247,19 @@ public final class ExecutionProcessingCoordinator {
                     exception);
             throw exception;
         }
+    }
+
+    private void saveProcessedRecord(
+            final ExecutionDeduplicationService.Result result) {
+
+        final Instant processedAt =
+                Instant.now(clock);
+
+        processingRecordRepository.save(
+                ProcessingRecord.processed(
+                        result.processingIdentity(),
+                        result.sourceFingerprint(),
+                        processedAt));
     }
 
     private void failExecution(

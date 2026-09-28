@@ -1,8 +1,9 @@
 package io.github.avinashio.ozhuku.server.config;
 
+import io.github.avinashio.ozhuku.application.deduplication.DeduplicationService;
+import io.github.avinashio.ozhuku.application.deduplication.ExecutionDeduplicationService;
 import io.github.avinashio.ozhuku.application.execution.DestinationExecutionLifecycleService;
 import io.github.avinashio.ozhuku.application.execution.ExecutionLifecycleService;
-import io.github.avinashio.ozhuku.application.orchestration.ExecutionOrchestrationService;
 import io.github.avinashio.ozhuku.application.execution.ExecutionProcessingCoordinator;
 import io.github.avinashio.ozhuku.application.execution.ExecutionResourceValidator;
 import io.github.avinashio.ozhuku.application.execution.ExecutionRunService;
@@ -10,9 +11,24 @@ import io.github.avinashio.ozhuku.application.execution.FlowExecutionLifecycleSe
 import io.github.avinashio.ozhuku.application.execution.PipelineExecutionService;
 import io.github.avinashio.ozhuku.application.execution.SourceExecutionLifecycleService;
 import io.github.avinashio.ozhuku.application.initialization.ExecutionInitializationService;
+import io.github.avinashio.ozhuku.application.orchestration.ExecutionOrchestrationService;
+import io.github.avinashio.ozhuku.application.pipeline.ConfiguredPipelineExecutionService;
+import io.github.avinashio.ozhuku.application.pipeline.PipelineConfigurationResolutionService;
+import io.github.avinashio.ozhuku.application.pipeline.PipelinePlanResolver;
 import io.github.avinashio.ozhuku.application.processing.ExecutionProcessingService;
 import io.github.avinashio.ozhuku.application.record.RecordProcessingService;
+import io.github.avinashio.ozhuku.application.recovery.DestinationExecutionRecoveryPolicy;
+import io.github.avinashio.ozhuku.application.recovery.DestinationRecoveryDecider;
+import io.github.avinashio.ozhuku.application.recovery.DestinationRecoveryExecutor;
+import io.github.avinashio.ozhuku.application.recovery.DestinationRecoveryService;
+import io.github.avinashio.ozhuku.application.recovery.DestinationRecoveryUseCase;
+import io.github.avinashio.ozhuku.application.recovery.PersistenceDestinationOutcomeInspector;
+import io.github.avinashio.ozhuku.application.source.SourceFingerprintService;
+import io.github.avinashio.ozhuku.application.source.SourceIdentityService;
 import io.github.avinashio.ozhuku.application.transfer.ResourceTransferService;
+import io.github.avinashio.ozhuku.domain.deduplication.DeduplicationEvaluator;
+import io.github.avinashio.ozhuku.domain.identity.SourceFingerprint;
+import io.github.avinashio.ozhuku.domain.identity.SourceIdentity;
 import io.github.avinashio.ozhuku.format.FormatReader;
 import io.github.avinashio.ozhuku.format.FormatWriter;
 import io.github.avinashio.ozhuku.format.csv.CsvFormatReader;
@@ -23,12 +39,14 @@ import io.github.avinashio.ozhuku.persistence.DestinationCommitRepository;
 import io.github.avinashio.ozhuku.persistence.DestinationExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.ExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.FlowExecutionRepository;
+import io.github.avinashio.ozhuku.persistence.PipelineConfigurationRepository;
 import io.github.avinashio.ozhuku.persistence.ProcessingRecordRepository;
 import io.github.avinashio.ozhuku.persistence.SourceExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.postgres.PostgresDestinationCommitRepository;
 import io.github.avinashio.ozhuku.persistence.postgres.PostgresDestinationExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.postgres.PostgresExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.postgres.PostgresFlowExecutionRepository;
+import io.github.avinashio.ozhuku.persistence.postgres.PostgresPipelineConfigurationRepository;
 import io.github.avinashio.ozhuku.persistence.postgres.PostgresProcessingRecordRepository;
 import io.github.avinashio.ozhuku.persistence.postgres.PostgresSourceExecutionRepository;
 import io.github.avinashio.ozhuku.storage.StorageOutputProvider;
@@ -44,18 +62,6 @@ import javax.sql.DataSource;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import io.github.avinashio.ozhuku.persistence.PipelineConfigurationRepository;
-import io.github.avinashio.ozhuku.application.pipeline.PipelineConfigurationResolutionService;
-import io.github.avinashio.ozhuku.application.pipeline.ConfiguredPipelineExecutionService;
-import io.github.avinashio.ozhuku.application.pipeline.PipelineConfigurationResolutionService;
-import io.github.avinashio.ozhuku.application.pipeline.PipelinePlanResolver;
-import io.github.avinashio.ozhuku.application.recovery.DestinationExecutionRecoveryPolicy;
-import io.github.avinashio.ozhuku.application.recovery.DestinationRecoveryDecider;
-import io.github.avinashio.ozhuku.application.recovery.DestinationRecoveryService;
-import io.github.avinashio.ozhuku.application.recovery.DestinationRecoveryUseCase;
-import io.github.avinashio.ozhuku.application.recovery.PersistenceDestinationOutcomeInspector;
-import io.github.avinashio.ozhuku.persistence.postgres.PostgresPipelineConfigurationRepository;
-import io.github.avinashio.ozhuku.application.recovery.DestinationRecoveryExecutor;
 
 @Configuration
 public class RuntimeConfiguration {
@@ -177,7 +183,8 @@ public class RuntimeConfiguration {
     @Bean
     public DestinationExecutionLifecycleService
     destinationExecutionLifecycleService(
-            final DestinationExecutionRepository destinationExecutionRepository,
+            final DestinationExecutionRepository
+                    destinationExecutionRepository,
             final Clock clock) {
         return new DestinationExecutionLifecycleService(
                 destinationExecutionRepository,
@@ -188,7 +195,8 @@ public class RuntimeConfiguration {
     public ExecutionOrchestrationService executionOrchestrationService(
             final ExecutionLifecycleService executionLifecycleService,
             final FlowExecutionLifecycleService flowExecutionLifecycleService,
-            final SourceExecutionLifecycleService sourceExecutionLifecycleService,
+            final SourceExecutionLifecycleService
+                    sourceExecutionLifecycleService,
             final DestinationExecutionLifecycleService
                     destinationExecutionLifecycleService) {
         return new ExecutionOrchestrationService(
@@ -203,7 +211,8 @@ public class RuntimeConfiguration {
             final ExecutionRepository executionRepository,
             final FlowExecutionRepository flowExecutionRepository,
             final SourceExecutionRepository sourceExecutionRepository,
-            final DestinationExecutionRepository destinationExecutionRepository) {
+            final DestinationExecutionRepository
+                    destinationExecutionRepository) {
         return new ExecutionInitializationService(
                 executionRepository,
                 flowExecutionRepository,
@@ -214,7 +223,8 @@ public class RuntimeConfiguration {
     @Bean
     public ExecutionResourceValidator executionResourceValidator(
             final SourceExecutionRepository sourceExecutionRepository,
-            final DestinationExecutionRepository destinationExecutionRepository) {
+            final DestinationExecutionRepository
+                    destinationExecutionRepository) {
         return new ExecutionResourceValidator(
                 sourceExecutionRepository,
                 destinationExecutionRepository);
@@ -248,20 +258,68 @@ public class RuntimeConfiguration {
     }
 
     @Bean
+    public SourceIdentityService sourceIdentityService() {
+        return new SourceIdentityService(
+                resource ->
+                        new SourceIdentity(
+                                resource.id().value()));
+    }
+
+    @Bean
+    public SourceFingerprintService sourceFingerprintService() {
+        return new SourceFingerprintService(
+                resource ->
+                        new SourceFingerprint(
+                                resource.location().value()));
+    }
+
+    @Bean
+    public DeduplicationService deduplicationService(
+            final ProcessingRecordRepository processingRecordRepository) {
+        return new DeduplicationService(
+                processingRecordRepository,
+                new DeduplicationEvaluator());
+    }
+
+    @Bean
+    public ExecutionDeduplicationService executionDeduplicationService(
+            final SourceIdentityService sourceIdentityService,
+            final SourceFingerprintService sourceFingerprintService,
+            final DeduplicationService deduplicationService) {
+        return new ExecutionDeduplicationService(
+                sourceIdentityService,
+                sourceFingerprintService,
+                deduplicationService);
+    }
+
+    @Bean
     public ExecutionProcessingCoordinator executionProcessingCoordinator(
-            final ExecutionOrchestrationService executionOrchestrationService,
-            final ExecutionProcessingService executionProcessingService,
-            final ExecutionResourceValidator executionResourceValidator) {
+            final ExecutionOrchestrationService
+                    executionOrchestrationService,
+            final ExecutionProcessingService
+                    executionProcessingService,
+            final ExecutionResourceValidator
+                    executionResourceValidator,
+            final ExecutionDeduplicationService
+                    executionDeduplicationService,
+            final ProcessingRecordRepository
+                    processingRecordRepository,
+            final Clock clock) {
         return new ExecutionProcessingCoordinator(
                 executionOrchestrationService,
                 executionProcessingService,
-                executionResourceValidator);
+                executionResourceValidator,
+                executionDeduplicationService,
+                processingRecordRepository,
+                clock);
     }
 
     @Bean
     public ExecutionRunService executionRunService(
-            final ExecutionInitializationService executionInitializationService,
-            final ExecutionProcessingCoordinator executionProcessingCoordinator) {
+            final ExecutionInitializationService
+                    executionInitializationService,
+            final ExecutionProcessingCoordinator
+                    executionProcessingCoordinator) {
         return new ExecutionRunService(
                 executionInitializationService,
                 executionProcessingCoordinator);
@@ -275,12 +333,11 @@ public class RuntimeConfiguration {
     }
 
     @Bean
-    public PipelineConfigurationRepository pipelineConfigurationRepository(
+    public PipelineConfigurationRepository
+    pipelineConfigurationRepository(
             final DataSource dataSource) {
         return new PostgresPipelineConfigurationRepository(dataSource);
     }
-
-
 
     @Bean
     public PipelinePlanResolver pipelinePlanResolver() {
@@ -299,10 +356,12 @@ public class RuntimeConfiguration {
     }
 
     @Bean
-    public ConfiguredPipelineExecutionService configuredPipelineExecutionService(
+    public ConfiguredPipelineExecutionService
+    configuredPipelineExecutionService(
             final PipelineConfigurationResolutionService
                     configurationResolutionService,
-            final PipelineExecutionService pipelineExecutionService) {
+            final PipelineExecutionService
+                    pipelineExecutionService) {
         return new ConfiguredPipelineExecutionService(
                 configurationResolutionService,
                 pipelineExecutionService);
@@ -319,33 +378,27 @@ public class RuntimeConfiguration {
     destinationOutcomeInspector(
             final DestinationCommitRepository
                     destinationCommitRepository) {
-
         return new PersistenceDestinationOutcomeInspector(
                 destinationCommitRepository);
     }
 
     @Bean
-    public DestinationRecoveryDecider
-    destinationRecoveryDecider(
+    public DestinationRecoveryDecider destinationRecoveryDecider(
             final PersistenceDestinationOutcomeInspector
                     outcomeInspector) {
-
         return new DestinationRecoveryDecider(
                 outcomeInspector);
     }
 
     @Bean
-    public DestinationRecoveryService
-    destinationRecoveryService(
+    public DestinationRecoveryService destinationRecoveryService(
             final DestinationExecutionRepository
                     destinationExecutionRepository,
             final DestinationCommitRepository
                     destinationCommitRepository,
             final DestinationExecutionRecoveryPolicy
                     executionRecoveryPolicy,
-            final DestinationRecoveryDecider
-                    recoveryDecider) {
-
+            final DestinationRecoveryDecider recoveryDecider) {
         return new DestinationRecoveryService(
                 destinationExecutionRepository,
                 destinationCommitRepository,
@@ -354,25 +407,24 @@ public class RuntimeConfiguration {
     }
 
     @Bean
-    public DestinationRecoveryUseCase
-    destinationRecoveryUseCase(
+    public DestinationRecoveryUseCase destinationRecoveryUseCase(
             final DestinationRecoveryService
                     recoveryDecisionProvider) {
-
         return new DestinationRecoveryUseCase(
                 recoveryDecisionProvider);
     }
 
     @Bean
     public DestinationRecoveryExecutor destinationRecoveryExecutor(
-            final DestinationRecoveryService destinationRecoveryService,
+            final DestinationRecoveryService
+                    destinationRecoveryService,
             final ExecutionRepository executionRepository,
             final PipelineConfigurationResolutionService
                     pipelineConfigurationResolutionService,
             final ResourceTransferService resourceTransferService,
-            final DestinationCommitRepository destinationCommitRepository,
+            final DestinationCommitRepository
+                    destinationCommitRepository,
             final Clock clock) {
-
         return new DestinationRecoveryExecutor(
                 destinationRecoveryService,
                 executionRepository,
@@ -381,5 +433,4 @@ public class RuntimeConfiguration {
                 destinationCommitRepository,
                 clock);
     }
-
 }

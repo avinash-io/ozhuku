@@ -67,6 +67,7 @@ public final class PipelineConfigurationResolutionService {
                 configuration.flow(),
                 configuration.source(),
                 configuration.destination(),
-                configuration.deliveryPolicy());
+                configuration.deliveryPolicy(),
+                configuration.duplicatePolicy());
     }
 }

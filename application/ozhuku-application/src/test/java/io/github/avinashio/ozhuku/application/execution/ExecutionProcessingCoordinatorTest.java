@@ -3,12 +3,19 @@ package io.github.avinashio.ozhuku.application.execution;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import io.github.avinashio.ozhuku.application.deduplication.DeduplicationService;
+import io.github.avinashio.ozhuku.application.deduplication.ExecutionDeduplicationService;
 import io.github.avinashio.ozhuku.application.orchestration.ExecutionOrchestrationService;
 import io.github.avinashio.ozhuku.application.processing.ExecutionProcessingService;
 import io.github.avinashio.ozhuku.application.processing.RecordProcessingRequest;
 import io.github.avinashio.ozhuku.application.processing.ResourceTransferRequest;
 import io.github.avinashio.ozhuku.application.record.RecordProcessingService;
+import io.github.avinashio.ozhuku.application.source.SourceFingerprintService;
+import io.github.avinashio.ozhuku.application.source.SourceIdentityService;
 import io.github.avinashio.ozhuku.application.transfer.ResourceTransferService;
+import io.github.avinashio.ozhuku.domain.deduplication.DeduplicationEvaluator;
+import io.github.avinashio.ozhuku.domain.deduplication.DuplicatePolicy;
+import io.github.avinashio.ozhuku.domain.deduplication.ProcessingRecord;
 import io.github.avinashio.ozhuku.domain.delivery.ConflictBehavior;
 import io.github.avinashio.ozhuku.domain.delivery.DeliveryPolicy;
 import io.github.avinashio.ozhuku.domain.execution.DestinationExecution;
@@ -22,11 +29,18 @@ import io.github.avinashio.ozhuku.domain.execution.FlowExecutionStatus;
 import io.github.avinashio.ozhuku.domain.execution.SourceExecution;
 import io.github.avinashio.ozhuku.domain.execution.SourceExecutionReference;
 import io.github.avinashio.ozhuku.domain.execution.SourceExecutionStatus;
-import io.github.avinashio.ozhuku.domain.identity.ExecutionId;
+import io.github.avinashio.ozhuku.domain.flow.Flow;
 import io.github.avinashio.ozhuku.domain.identity.FlowId;
+import io.github.avinashio.ozhuku.domain.flow.FlowMode;
+import io.github.avinashio.ozhuku.domain.identity.ExecutionId;
 import io.github.avinashio.ozhuku.domain.identity.PipelineId;
 import io.github.avinashio.ozhuku.domain.identity.PipelineVersion;
+import io.github.avinashio.ozhuku.domain.identity.ProcessingIdentity;
 import io.github.avinashio.ozhuku.domain.identity.ResourceId;
+import io.github.avinashio.ozhuku.domain.identity.SourceFingerprint;
+import io.github.avinashio.ozhuku.domain.identity.SourceIdentity;
+import io.github.avinashio.ozhuku.domain.pipeline.PipelineDefinition;
+import io.github.avinashio.ozhuku.domain.pipeline.PipelinePlan;
 import io.github.avinashio.ozhuku.domain.record.Record;
 import io.github.avinashio.ozhuku.domain.record.RecordField;
 import io.github.avinashio.ozhuku.domain.record.RecordMetadata;
@@ -39,6 +53,7 @@ import io.github.avinashio.ozhuku.format.FormatWriter;
 import io.github.avinashio.ozhuku.persistence.DestinationExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.ExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.FlowExecutionRepository;
+import io.github.avinashio.ozhuku.persistence.ProcessingRecordRepository;
 import io.github.avinashio.ozhuku.persistence.SourceExecutionRepository;
 import io.github.avinashio.ozhuku.storage.StorageOutput;
 import io.github.avinashio.ozhuku.storage.StorageOutputProvider;
@@ -71,6 +86,12 @@ class ExecutionProcessingCoordinatorTest {
     private static final FlowId FLOW_ID =
             new FlowId("flow-1");
 
+    private static final PipelineId PIPELINE_ID =
+            new PipelineId("pipeline-1");
+
+    private static final PipelineVersion PIPELINE_VERSION =
+            new PipelineVersion(1L);
+
     private static final ResourceId SOURCE_RESOURCE_ID =
             new ResourceId("source");
 
@@ -81,6 +102,7 @@ class ExecutionProcessingCoordinatorTest {
     private FakeFlowExecutionRepository flowExecutionRepository;
     private FakeSourceExecutionRepository sourceExecutionRepository;
     private FakeDestinationExecutionRepository destinationExecutionRepository;
+    private FakeProcessingRecordRepository processingRecordRepository;
 
     private ExecutionProcessingCoordinator service;
 
@@ -97,6 +119,9 @@ class ExecutionProcessingCoordinatorTest {
 
         destinationExecutionRepository =
                 new FakeDestinationExecutionRepository();
+
+        processingRecordRepository =
+                new FakeProcessingRecordRepository();
 
         final Clock clock =
                 Clock.fixed(
@@ -154,10 +179,12 @@ class ExecutionProcessingCoordinatorTest {
                         sourceExecutionRepository,
                         destinationExecutionRepository);
 
-        service = new ExecutionProcessingCoordinator(
-                orchestrationService,
-                processingService,
-                executionResourceValidator);
+        service =
+                createService(
+                        orchestrationService,
+                        processingService,
+                        executionResourceValidator,
+                        clock);
     }
 
     @Test
@@ -173,8 +200,9 @@ class ExecutionProcessingCoordinatorTest {
                         deliveryPolicy());
 
         service.processResourceTransfer(
-                EXECUTION_ID,
-                FLOW_ID,
+                createExecutionReference(),
+                createPipelinePlan(
+                        DuplicatePolicy.SKIP_IF_PROCESSED),
                 request);
 
         assertEquals(
@@ -210,6 +238,10 @@ class ExecutionProcessingCoordinatorTest {
                                 DESTINATION_RESOURCE_ID)
                         .orElseThrow()
                         .status());
+
+        assertEquals(
+                1,
+                processingRecordRepository.size());
     }
 
     @Test
@@ -241,8 +273,9 @@ class ExecutionProcessingCoordinatorTest {
                         formatWriter);
 
         service.processRecordProcessing(
-                EXECUTION_ID,
-                FLOW_ID,
+                createExecutionReference(),
+                createPipelinePlan(
+                        DuplicatePolicy.SKIP_IF_PROCESSED),
                 request);
 
         assertEquals(
@@ -284,6 +317,10 @@ class ExecutionProcessingCoordinatorTest {
                                 DESTINATION_RESOURCE_ID)
                         .orElseThrow()
                         .status());
+
+        assertEquals(
+                1,
+                processingRecordRepository.size());
     }
 
     @Test
@@ -314,7 +351,15 @@ class ExecutionProcessingCoordinatorTest {
                         failingTransferService,
                         recordProcessingService);
 
-        service = createService(processingService);
+        final Clock clock =
+                Clock.fixed(
+                        FIXED_TIME,
+                        ZoneOffset.UTC);
+
+        service =
+                createService(
+                        processingService,
+                        clock);
 
         final ResourceTransferRequest request =
                 new ResourceTransferRequest(
@@ -326,8 +371,9 @@ class ExecutionProcessingCoordinatorTest {
                 assertThrows(
                         IOException.class,
                         () -> service.processResourceTransfer(
-                                EXECUTION_ID,
-                                FLOW_ID,
+                                createExecutionReference(),
+                                createPipelinePlan(
+                                        DuplicatePolicy.SKIP_IF_PROCESSED),
                                 request));
 
         assertEquals(
@@ -367,6 +413,10 @@ class ExecutionProcessingCoordinatorTest {
                                 DESTINATION_RESOURCE_ID)
                         .orElseThrow()
                         .status());
+
+        assertEquals(
+                0,
+                processingRecordRepository.size());
     }
 
     @Test
@@ -403,8 +453,9 @@ class ExecutionProcessingCoordinatorTest {
                 assertThrows(
                         IOException.class,
                         () -> service.processRecordProcessing(
-                                EXECUTION_ID,
-                                FLOW_ID,
+                                createExecutionReference(),
+                                createPipelinePlan(
+                                        DuplicatePolicy.SKIP_IF_PROCESSED),
                                 request));
 
         assertEquals(
@@ -444,6 +495,168 @@ class ExecutionProcessingCoordinatorTest {
                                 DESTINATION_RESOURCE_ID)
                         .orElseThrow()
                         .status());
+
+        assertEquals(
+                0,
+                processingRecordRepository.size());
+    }
+
+    @Test
+    void processResourceTransferShouldSkipAlreadyProcessedSource()
+            throws IOException {
+
+        createPendingExecution();
+
+        final ProcessingIdentity identity =
+                new ProcessingIdentity(
+                        new SourceIdentity(
+                                "file:///source"),
+                        PIPELINE_ID,
+                        PIPELINE_VERSION);
+
+        processingRecordRepository.save(
+                ProcessingRecord.processed(
+                        identity,
+                        new SourceFingerprint(
+                                "fingerprint-1"),
+                        FIXED_TIME));
+
+        final ResourceTransferRequest request =
+                new ResourceTransferRequest(
+                        resource("source"),
+                        resource("destination"),
+                        deliveryPolicy());
+
+        service.processResourceTransfer(
+                createExecutionReference(),
+                createPipelinePlan(
+                        DuplicatePolicy.SKIP_IF_PROCESSED),
+                request);
+
+        assertEquals(
+                ExecutionStatus.COMPLETED,
+                executionRepository
+                        .findById(EXECUTION_ID)
+                        .orElseThrow()
+                        .status());
+
+        assertEquals(
+                1,
+                processingRecordRepository.size());
+    }
+
+    @Test
+    void processResourceTransferShouldFailWhenDuplicatePolicyFails()
+            throws IOException {
+
+        createPendingExecution();
+
+        final ProcessingIdentity identity =
+                new ProcessingIdentity(
+                        new SourceIdentity(
+                                "file:///source"),
+                        PIPELINE_ID,
+                        PIPELINE_VERSION);
+
+        processingRecordRepository.save(
+                ProcessingRecord.processed(
+                        identity,
+                        new SourceFingerprint(
+                                "fingerprint-1"),
+                        FIXED_TIME));
+
+        final ResourceTransferRequest request =
+                new ResourceTransferRequest(
+                        resource("source"),
+                        resource("destination"),
+                        deliveryPolicy());
+
+        final IllegalStateException actual =
+                assertThrows(
+                        IllegalStateException.class,
+                        () -> service.processResourceTransfer(
+                                createExecutionReference(),
+                                createPipelinePlan(
+                                        DuplicatePolicy.FAIL_IF_DUPLICATE),
+                                request));
+
+        assertEquals(
+                "Duplicate source detected for processing identity",
+                actual.getMessage());
+
+        assertEquals(
+                ExecutionStatus.FAILED,
+                executionRepository
+                        .findById(EXECUTION_ID)
+                        .orElseThrow()
+                        .status());
+
+        assertEquals(
+                1,
+                processingRecordRepository.size());
+    }
+
+    @Test
+    void processResourceTransferShouldRejectUnknownSourceBeforeStartingExecution()
+            throws IOException {
+
+        createPendingExecution();
+
+        final ResourceTransferRequest request =
+                new ResourceTransferRequest(
+                        resource("unknown-source"),
+                        resource("destination"),
+                        deliveryPolicy());
+
+        final IllegalStateException actual =
+                assertThrows(
+                        IllegalStateException.class,
+                        () -> service.processResourceTransfer(
+                                createExecutionReference(),
+                                createPipelinePlan(
+                                        DuplicatePolicy.SKIP_IF_PROCESSED),
+                                request));
+
+        assertEquals(
+                "Source execution not found for execution "
+                        + EXECUTION_ID
+                        + " and resource "
+                        + new ResourceId("unknown-source"),
+                actual.getMessage());
+
+        assertEquals(
+                ExecutionStatus.PENDING,
+                executionRepository
+                        .findById(EXECUTION_ID)
+                        .orElseThrow()
+                        .status());
+
+        assertEquals(
+                FlowExecutionStatus.PENDING,
+                flowExecutionRepository
+                        .findById(
+                                EXECUTION_ID,
+                                FLOW_ID)
+                        .orElseThrow()
+                        .status());
+
+        assertEquals(
+                SourceExecutionStatus.PENDING,
+                sourceExecutionRepository
+                        .findById(
+                                EXECUTION_ID,
+                                SOURCE_RESOURCE_ID)
+                        .orElseThrow()
+                        .status());
+
+        assertEquals(
+                DestinationExecutionStatus.PENDING,
+                destinationExecutionRepository
+                        .findById(
+                                EXECUTION_ID,
+                                DESTINATION_RESOURCE_ID)
+                        .orElseThrow()
+                        .status());
     }
 
     private void createPendingExecution() {
@@ -470,12 +683,8 @@ class ExecutionProcessingCoordinatorTest {
     }
 
     private ExecutionProcessingCoordinator createService(
-            final ExecutionProcessingService processingService) {
-
-        final Clock clock =
-                Clock.fixed(
-                        FIXED_TIME,
-                        ZoneOffset.UTC);
+            final ExecutionProcessingService processingService,
+            final Clock clock) {
 
         final ExecutionOrchestrationService orchestrationService =
                 new ExecutionOrchestrationService(
@@ -497,17 +706,107 @@ class ExecutionProcessingCoordinatorTest {
                         sourceExecutionRepository,
                         destinationExecutionRepository);
 
+        final SourceIdentityService sourceIdentityService =
+                new SourceIdentityService(
+                        resource ->
+                                new SourceIdentity(
+                                        resource.location().value()));
+
+        final SourceFingerprintService sourceFingerprintService =
+                new SourceFingerprintService(
+                        resource ->
+                                new SourceFingerprint(
+                                        "fingerprint-1"));
+
+        final DeduplicationService deduplicationService =
+                new DeduplicationService(
+                        processingRecordRepository,
+                        new DeduplicationEvaluator());
+
+        final ExecutionDeduplicationService
+                executionDeduplicationService =
+                new ExecutionDeduplicationService(
+                        sourceIdentityService,
+                        sourceFingerprintService,
+                        deduplicationService);
+
         return new ExecutionProcessingCoordinator(
                 orchestrationService,
                 processingService,
-                executionResourceValidator);
+                executionResourceValidator,
+                executionDeduplicationService,
+                processingRecordRepository,
+                clock);
+    }
+
+    private ExecutionProcessingCoordinator createService(
+            final ExecutionOrchestrationService orchestrationService,
+            final ExecutionProcessingService processingService,
+            final ExecutionResourceValidator executionResourceValidator,
+            final Clock clock) {
+
+        final SourceIdentityService sourceIdentityService =
+                new SourceIdentityService(
+                        resource ->
+                                new SourceIdentity(
+                                        resource.location().value()));
+
+        final SourceFingerprintService sourceFingerprintService =
+                new SourceFingerprintService(
+                        resource ->
+                                new SourceFingerprint(
+                                        "fingerprint-1"));
+
+        final DeduplicationService deduplicationService =
+                new DeduplicationService(
+                        processingRecordRepository,
+                        new DeduplicationEvaluator());
+
+        final ExecutionDeduplicationService
+                executionDeduplicationService =
+                new ExecutionDeduplicationService(
+                        sourceIdentityService,
+                        sourceFingerprintService,
+                        deduplicationService);
+
+        return new ExecutionProcessingCoordinator(
+                orchestrationService,
+                processingService,
+                executionResourceValidator,
+                executionDeduplicationService,
+                processingRecordRepository,
+                clock);
     }
 
     private static ExecutionReference createExecutionReference() {
         return new ExecutionReference(
                 EXECUTION_ID,
-                new PipelineId("pipeline-1"),
-                new PipelineVersion(1));
+                PIPELINE_ID,
+                PIPELINE_VERSION);
+    }
+
+    private static PipelinePlan createPipelinePlan(
+            final DuplicatePolicy duplicatePolicy) {
+
+        final PipelineDefinition definition =
+                new PipelineDefinition(
+                        PIPELINE_ID,
+                        PIPELINE_VERSION,
+                        "test pipeline");
+
+        final Flow flow =
+                new Flow(
+                        FLOW_ID,
+                        "test-flow",
+                        FlowMode.RESOURCE_TRANSFER);
+
+        return new PipelinePlan(
+                definition,
+                flow,
+                resource("source"),
+                resource("destination"),
+                deliveryPolicy(),
+                duplicatePolicy);
     }
 
     private static Resource resource(
@@ -814,65 +1113,31 @@ class ExecutionProcessingCoordinatorTest {
         }
     }
 
-    @Test
-    void processResourceTransferShouldRejectUnknownSourceBeforeStartingExecution()
-            throws IOException {
+    private static final class FakeProcessingRecordRepository
+            implements ProcessingRecordRepository {
 
-        createPendingExecution();
+        private final Map<ProcessingIdentity, ProcessingRecord> records =
+                new HashMap<>();
 
-        final ResourceTransferRequest request =
-                new ResourceTransferRequest(
-                        resource("unknown-source"),
-                        resource("destination"),
-                        deliveryPolicy());
+        @Override
+        public Optional<ProcessingRecord> findByIdentity(
+                final ProcessingIdentity identity) {
 
-        final IllegalStateException actual =
-                assertThrows(
-                        IllegalStateException.class,
-                        () -> service.processResourceTransfer(
-                                EXECUTION_ID,
-                                FLOW_ID,
-                                request));
+            return Optional.ofNullable(
+                    records.get(identity));
+        }
 
-        assertEquals(
-                "Source execution not found for execution "
-                        + EXECUTION_ID
-                        + " and resource "
-                        + new ResourceId("unknown-source"),
-                actual.getMessage());
+        @Override
+        public void save(
+                final ProcessingRecord record) {
 
-        assertEquals(
-                ExecutionStatus.PENDING,
-                executionRepository
-                        .findById(EXECUTION_ID)
-                        .orElseThrow()
-                        .status());
+            records.put(
+                    record.identity(),
+                    record);
+        }
 
-        assertEquals(
-                FlowExecutionStatus.PENDING,
-                flowExecutionRepository
-                        .findById(
-                                EXECUTION_ID,
-                                FLOW_ID)
-                        .orElseThrow()
-                        .status());
-
-        assertEquals(
-                SourceExecutionStatus.PENDING,
-                sourceExecutionRepository
-                        .findById(
-                                EXECUTION_ID,
-                                SOURCE_RESOURCE_ID)
-                        .orElseThrow()
-                        .status());
-
-        assertEquals(
-                DestinationExecutionStatus.PENDING,
-                destinationExecutionRepository
-                        .findById(
-                                EXECUTION_ID,
-                                DESTINATION_RESOURCE_ID)
-                        .orElseThrow()
-                        .status());
+        private int size() {
+            return records.size();
+        }
     }
 }

@@ -3,11 +3,18 @@ package io.github.avinashio.ozhuku.application.execution;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import io.github.avinashio.ozhuku.application.deduplication.DeduplicationService;
+import io.github.avinashio.ozhuku.application.deduplication.ExecutionDeduplicationService;
 import io.github.avinashio.ozhuku.application.initialization.ExecutionInitializationService;
 import io.github.avinashio.ozhuku.application.orchestration.ExecutionOrchestrationService;
 import io.github.avinashio.ozhuku.application.processing.ExecutionProcessingService;
 import io.github.avinashio.ozhuku.application.record.RecordProcessingService;
+import io.github.avinashio.ozhuku.application.source.SourceFingerprintService;
+import io.github.avinashio.ozhuku.application.source.SourceIdentityService;
 import io.github.avinashio.ozhuku.application.transfer.ResourceTransferService;
+import io.github.avinashio.ozhuku.domain.deduplication.DeduplicationEvaluator;
+import io.github.avinashio.ozhuku.domain.deduplication.DuplicatePolicy;
+import io.github.avinashio.ozhuku.domain.deduplication.ProcessingRecord;
 import io.github.avinashio.ozhuku.domain.delivery.ConflictBehavior;
 import io.github.avinashio.ozhuku.domain.delivery.DeliveryPolicy;
 import io.github.avinashio.ozhuku.domain.execution.Execution;
@@ -18,7 +25,10 @@ import io.github.avinashio.ozhuku.domain.identity.ExecutionId;
 import io.github.avinashio.ozhuku.domain.identity.FlowId;
 import io.github.avinashio.ozhuku.domain.identity.PipelineId;
 import io.github.avinashio.ozhuku.domain.identity.PipelineVersion;
+import io.github.avinashio.ozhuku.domain.identity.ProcessingIdentity;
 import io.github.avinashio.ozhuku.domain.identity.ResourceId;
+import io.github.avinashio.ozhuku.domain.identity.SourceFingerprint;
+import io.github.avinashio.ozhuku.domain.identity.SourceIdentity;
 import io.github.avinashio.ozhuku.domain.pipeline.PipelineDefinition;
 import io.github.avinashio.ozhuku.domain.pipeline.PipelinePlan;
 import io.github.avinashio.ozhuku.domain.resource.Resource;
@@ -29,12 +39,16 @@ import io.github.avinashio.ozhuku.format.FormatWriter;
 import io.github.avinashio.ozhuku.persistence.DestinationExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.ExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.FlowExecutionRepository;
+import io.github.avinashio.ozhuku.persistence.ProcessingRecordRepository;
 import io.github.avinashio.ozhuku.persistence.SourceExecutionRepository;
 import io.github.avinashio.ozhuku.storage.StorageOutput;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.time.Clock;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -80,22 +94,41 @@ class PipelineExecutionServiceTest {
                         sourceExecutionRepository,
                         destinationExecutionRepository);
 
+        final ProcessingRecordRepository processingRecordRepository =
+                new InMemoryProcessingRecordRepository();
+
+        final ExecutionDeduplicationService
+                executionDeduplicationService =
+                new ExecutionDeduplicationService(
+                        new SourceIdentityService(
+                                resource ->
+                                        new SourceIdentity("test-source")),
+                        new SourceFingerprintService(
+                                resource ->
+                                        new SourceFingerprint(
+                                                "test-fingerprint")),
+                        new DeduplicationService(
+                                processingRecordRepository,
+                                new DeduplicationEvaluator()));
+
+        final Clock clock = Clock.systemUTC();
+
         final ExecutionProcessingCoordinator
                 processingCoordinator =
                 new ExecutionProcessingCoordinator(
                         new ExecutionOrchestrationService(
                                 new ExecutionLifecycleService(
                                         executionRepository,
-                                        java.time.Clock.systemUTC()),
+                                        clock),
                                 new FlowExecutionLifecycleService(
                                         flowExecutionRepository,
-                                        java.time.Clock.systemUTC()),
+                                        clock),
                                 new SourceExecutionLifecycleService(
                                         sourceExecutionRepository,
-                                        java.time.Clock.systemUTC()),
+                                        clock),
                                 new DestinationExecutionLifecycleService(
                                         destinationExecutionRepository,
-                                        java.time.Clock.systemUTC())),
+                                        clock)),
                         new ExecutionProcessingService(
                                 new ResourceTransferService(
                                         resource ->
@@ -128,7 +161,10 @@ class PipelineExecutionServiceTest {
                                                 })),
                         new ExecutionResourceValidator(
                                 sourceExecutionRepository,
-                                destinationExecutionRepository));
+                                destinationExecutionRepository),
+                        executionDeduplicationService,
+                        processingRecordRepository,
+                        clock);
 
         final ExecutionRunService executionRunService =
                 new ExecutionRunService(
@@ -311,7 +347,8 @@ class PipelineExecutionServiceTest {
                 resource("source"),
                 resource("destination"),
                 new DeliveryPolicy(
-                        ConflictBehavior.REPLACE));
+                        ConflictBehavior.REPLACE),
+                DuplicatePolicy.SKIP_IF_PROCESSED);
     }
 
     private static Resource resource(
@@ -385,6 +422,30 @@ class PipelineExecutionServiceTest {
 
         int writeCount() {
             return writeCount;
+        }
+    }
+
+    private static final class InMemoryProcessingRecordRepository
+            implements ProcessingRecordRepository {
+
+        private final Map<ProcessingIdentity, ProcessingRecord> records =
+                new HashMap<>();
+
+        @Override
+        public Optional<ProcessingRecord> findByIdentity(
+                final ProcessingIdentity identity) {
+
+            return Optional.ofNullable(
+                    records.get(identity));
+        }
+
+        @Override
+        public void save(
+                final ProcessingRecord record) {
+
+            records.put(
+                    record.identity(),
+                    record);
         }
     }
 
@@ -500,4 +561,5 @@ class PipelineExecutionServiceTest {
             this.destinationExecution = destinationExecution;
         }
     }
+
 }

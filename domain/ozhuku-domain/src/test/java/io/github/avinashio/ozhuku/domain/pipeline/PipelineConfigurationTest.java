@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import io.github.avinashio.ozhuku.domain.delivery.ConflictBehavior;
 import io.github.avinashio.ozhuku.domain.delivery.DeliveryPolicy;
+import io.github.avinashio.ozhuku.domain.deduplication.DuplicatePolicy;
 import io.github.avinashio.ozhuku.domain.flow.Flow;
 import io.github.avinashio.ozhuku.domain.flow.FlowMode;
 import io.github.avinashio.ozhuku.domain.identity.FlowId;
@@ -25,6 +26,8 @@ class PipelineConfigurationTest {
         final Resource source = resource("source");
         final Resource destination = resource("destination");
         final DeliveryPolicy deliveryPolicy = deliveryPolicy();
+        final DuplicatePolicy duplicatePolicy =
+                DuplicatePolicy.SKIP_IF_PROCESSED;
 
         final PipelineConfiguration configuration =
                 new PipelineConfiguration(
@@ -32,13 +35,15 @@ class PipelineConfigurationTest {
                         flow,
                         source,
                         destination,
-                        deliveryPolicy);
+                        deliveryPolicy,
+                        duplicatePolicy);
 
         assertEquals(definition, configuration.pipelineDefinition());
         assertEquals(flow, configuration.flow());
         assertEquals(source, configuration.source());
         assertEquals(destination, configuration.destination());
         assertEquals(deliveryPolicy, configuration.deliveryPolicy());
+        assertEquals(duplicatePolicy, configuration.duplicatePolicy());
     }
 
     @Test
@@ -50,7 +55,8 @@ class PipelineConfigurationTest {
                         flow(),
                         resource("source"),
                         resource("destination"),
-                        deliveryPolicy()));
+                        deliveryPolicy(),
+                        DuplicatePolicy.SKIP_IF_PROCESSED));
     }
 
     @Test
@@ -62,7 +68,8 @@ class PipelineConfigurationTest {
                         null,
                         resource("source"),
                         resource("destination"),
-                        deliveryPolicy()));
+                        deliveryPolicy(),
+                        DuplicatePolicy.SKIP_IF_PROCESSED));
     }
 
     @Test
@@ -74,7 +81,8 @@ class PipelineConfigurationTest {
                         flow(),
                         null,
                         resource("destination"),
-                        deliveryPolicy()));
+                        deliveryPolicy(),
+                        DuplicatePolicy.SKIP_IF_PROCESSED));
     }
 
     @Test
@@ -86,7 +94,8 @@ class PipelineConfigurationTest {
                         flow(),
                         resource("source"),
                         null,
-                        deliveryPolicy()));
+                        deliveryPolicy(),
+                        DuplicatePolicy.SKIP_IF_PROCESSED));
     }
 
     @Test
@@ -98,6 +107,20 @@ class PipelineConfigurationTest {
                         flow(),
                         resource("source"),
                         resource("destination"),
+                        null,
+                        DuplicatePolicy.SKIP_IF_PROCESSED));
+    }
+
+    @Test
+    void shouldRejectNullDuplicatePolicy() {
+        assertThrows(
+                ValidationException.class,
+                () -> new PipelineConfiguration(
+                        pipelineDefinition(),
+                        flow(),
+                        resource("source"),
+                        resource("destination"),
+                        deliveryPolicy(),
                         null));
     }
 
@@ -109,7 +132,8 @@ class PipelineConfigurationTest {
                         flow(),
                         resource("source"),
                         resource("destination"),
-                        deliveryPolicy());
+                        deliveryPolicy(),
+                        DuplicatePolicy.SKIP_IF_PROCESSED);
 
         final PipelineConfiguration second =
                 new PipelineConfiguration(
@@ -117,7 +141,8 @@ class PipelineConfigurationTest {
                         flow(),
                         resource("source"),
                         resource("destination"),
-                        deliveryPolicy());
+                        deliveryPolicy(),
+                        DuplicatePolicy.SKIP_IF_PROCESSED);
 
         assertEquals(first, second);
         assertEquals(first.hashCode(), second.hashCode());

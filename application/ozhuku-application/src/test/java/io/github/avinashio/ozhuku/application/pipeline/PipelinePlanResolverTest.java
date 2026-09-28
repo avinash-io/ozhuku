@@ -3,6 +3,7 @@ package io.github.avinashio.ozhuku.application.pipeline;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import io.github.avinashio.ozhuku.domain.deduplication.DuplicatePolicy;
 import io.github.avinashio.ozhuku.domain.delivery.ConflictBehavior;
 import io.github.avinashio.ozhuku.domain.delivery.DeliveryPolicy;
 import io.github.avinashio.ozhuku.domain.flow.Flow;
@@ -57,13 +58,17 @@ class PipelinePlanResolverTest {
                         flow,
                         source,
                         destination,
-                        deliveryPolicy);
+                        deliveryPolicy,
+                        DuplicatePolicy.SKIP_IF_PROCESSED);
 
         assertEquals(pipelineDefinition, result.pipelineDefinition());
         assertEquals(flow, result.flow());
         assertEquals(source, result.source());
         assertEquals(destination, result.destination());
         assertEquals(deliveryPolicy, result.deliveryPolicy());
+        assertEquals(
+                DuplicatePolicy.SKIP_IF_PROCESSED,
+                result.duplicatePolicy());
     }
 
     @Test
@@ -95,7 +100,8 @@ class PipelinePlanResolverTest {
                         flow,
                         source,
                         destination,
-                        deliveryPolicy));
+                        deliveryPolicy,
+                        DuplicatePolicy.SKIP_IF_PROCESSED));
     }
 
     @Test
@@ -127,7 +133,8 @@ class PipelinePlanResolverTest {
                         null,
                         source,
                         destination,
-                        deliveryPolicy));
+                        deliveryPolicy,
+                        DuplicatePolicy.SKIP_IF_PROCESSED));
     }
 
     @Test
@@ -160,7 +167,8 @@ class PipelinePlanResolverTest {
                         flow,
                         null,
                         destination,
-                        deliveryPolicy));
+                        deliveryPolicy,
+                        DuplicatePolicy.SKIP_IF_PROCESSED));
     }
 
     @Test
@@ -193,7 +201,8 @@ class PipelinePlanResolverTest {
                         flow,
                         source,
                         null,
-                        deliveryPolicy));
+                        deliveryPolicy,
+                        DuplicatePolicy.SKIP_IF_PROCESSED));
     }
 
     @Test
@@ -228,6 +237,8 @@ class PipelinePlanResolverTest {
                         flow,
                         source,
                         destination,
-                        null));
+                        null,
+                        DuplicatePolicy.SKIP_IF_PROCESSED));
     }
 }
+

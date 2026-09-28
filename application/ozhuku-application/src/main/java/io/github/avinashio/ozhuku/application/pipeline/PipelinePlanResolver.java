@@ -1,6 +1,7 @@
 package io.github.avinashio.ozhuku.application.pipeline;
 
 import io.github.avinashio.ozhuku.domain.delivery.DeliveryPolicy;
+import io.github.avinashio.ozhuku.domain.deduplication.DuplicatePolicy;
 import io.github.avinashio.ozhuku.domain.flow.Flow;
 import io.github.avinashio.ozhuku.domain.pipeline.PipelineDefinition;
 import io.github.avinashio.ozhuku.domain.pipeline.PipelinePlan;
@@ -19,7 +20,8 @@ public final class PipelinePlanResolver {
             final Flow flow,
             final Resource source,
             final Resource destination,
-            final DeliveryPolicy deliveryPolicy) {
+            final DeliveryPolicy deliveryPolicy,
+            final DuplicatePolicy duplicatePolicy) {
 
         return new PipelinePlan(
                 Validation.requireNonNull(
@@ -36,6 +38,9 @@ public final class PipelinePlanResolver {
                         "destination must not be null"),
                 Validation.requireNonNull(
                         deliveryPolicy,
-                        "deliveryPolicy must not be null"));
+                        "deliveryPolicy must not be null"),
+                Validation.requireNonNull(
+                        duplicatePolicy,
+                        "duplicatePolicy must not be null"));
     }
 }
