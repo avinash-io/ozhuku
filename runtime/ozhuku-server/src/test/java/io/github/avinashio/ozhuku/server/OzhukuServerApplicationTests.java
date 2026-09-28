@@ -4,11 +4,22 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.avinashio.ozhuku.application.pipeline.ConfiguredPipelineExecutionService;
+import io.github.avinashio.ozhuku.application.recovery.DestinationRecoveryExecutor;
+import io.github.avinashio.ozhuku.application.recovery.DestinationRecoveryUseCase;
 import io.github.avinashio.ozhuku.domain.delivery.ConflictBehavior;
 import io.github.avinashio.ozhuku.domain.delivery.DeliveryPolicy;
+import io.github.avinashio.ozhuku.domain.execution.CommitStatus;
+import io.github.avinashio.ozhuku.domain.execution.DestinationCommit;
+import io.github.avinashio.ozhuku.domain.execution.DestinationCommitReference;
+import io.github.avinashio.ozhuku.domain.execution.DestinationExecution;
+import io.github.avinashio.ozhuku.domain.execution.DestinationExecutionReference;
+import io.github.avinashio.ozhuku.domain.execution.DestinationExecutionStatus;
 import io.github.avinashio.ozhuku.domain.execution.Execution;
 import io.github.avinashio.ozhuku.domain.execution.ExecutionReference;
 import io.github.avinashio.ozhuku.domain.execution.ExecutionStatus;
+import io.github.avinashio.ozhuku.application.recovery.RecoveryDecision;
+import io.github.avinashio.ozhuku.application.recovery.RecoveryReason;
+import io.github.avinashio.ozhuku.application.recovery.RecoveryResult;
 import io.github.avinashio.ozhuku.domain.flow.Flow;
 import io.github.avinashio.ozhuku.domain.flow.FlowMode;
 import io.github.avinashio.ozhuku.domain.identity.ExecutionId;
@@ -20,11 +31,14 @@ import io.github.avinashio.ozhuku.domain.pipeline.PipelineConfiguration;
 import io.github.avinashio.ozhuku.domain.pipeline.PipelineDefinition;
 import io.github.avinashio.ozhuku.domain.resource.Resource;
 import io.github.avinashio.ozhuku.domain.resource.ResourceLocation;
+import io.github.avinashio.ozhuku.persistence.DestinationCommitRepository;
+import io.github.avinashio.ozhuku.persistence.DestinationExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.ExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.PipelineConfigurationRepository;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,19 +48,6 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import io.github.avinashio.ozhuku.application.recovery.DestinationRecoveryUseCase;
-import io.github.avinashio.ozhuku.application.recovery.RecoveryDecision;
-import io.github.avinashio.ozhuku.application.recovery.RecoveryReason;
-import io.github.avinashio.ozhuku.application.recovery.RecoveryResult;
-import io.github.avinashio.ozhuku.domain.execution.CommitStatus;
-import io.github.avinashio.ozhuku.domain.execution.DestinationCommit;
-import io.github.avinashio.ozhuku.domain.execution.DestinationCommitReference;
-import io.github.avinashio.ozhuku.domain.execution.DestinationExecution;
-import io.github.avinashio.ozhuku.domain.execution.DestinationExecutionReference;
-import io.github.avinashio.ozhuku.domain.execution.DestinationExecutionStatus;
-import io.github.avinashio.ozhuku.persistence.DestinationCommitRepository;
-import io.github.avinashio.ozhuku.persistence.DestinationExecutionRepository;
-import java.time.Instant;
 
 @Testcontainers
 @SpringBootTest
@@ -62,22 +63,31 @@ class OzhukuServerApplicationTests {
     private static Path storageRoot;
 
     @Autowired
-    private ConfiguredPipelineExecutionService configuredPipelineExecutionService;
+    private ConfiguredPipelineExecutionService
+            configuredPipelineExecutionService;
 
     @Autowired
-    private PipelineConfigurationRepository pipelineConfigurationRepository;
+    private PipelineConfigurationRepository
+            pipelineConfigurationRepository;
 
     @Autowired
     private ExecutionRepository executionRepository;
 
     @Autowired
-    private DestinationRecoveryUseCase destinationRecoveryUseCase;
+    private DestinationRecoveryUseCase
+            destinationRecoveryUseCase;
 
     @Autowired
-    private DestinationExecutionRepository destinationExecutionRepository;
+    private DestinationRecoveryExecutor
+            destinationRecoveryExecutor;
 
     @Autowired
-    private DestinationCommitRepository destinationCommitRepository;
+    private DestinationExecutionRepository
+            destinationExecutionRepository;
+
+    @Autowired
+    private DestinationCommitRepository
+            destinationCommitRepository;
 
     @BeforeAll
     static void setUpStorageRoot() throws IOException {
@@ -115,12 +125,21 @@ class OzhukuServerApplicationTests {
     void contextLoads() {
         assertTrue(
                 POSTGRES.isRunning());
+
         assertTrue(
                 configuredPipelineExecutionService != null);
+
         assertTrue(
                 pipelineConfigurationRepository != null);
+
         assertTrue(
                 executionRepository != null);
+
+        assertTrue(
+                destinationRecoveryUseCase != null);
+
+        assertTrue(
+                destinationRecoveryExecutor != null);
     }
 
     @Test
@@ -216,11 +235,14 @@ class OzhukuServerApplicationTests {
 
     @Test
     void shouldRecoverDestinationWhenCommitIsNotConfirmed() {
+
         final ExecutionId executionId =
-                new ExecutionId("recovery-execution-not-committed");
+                new ExecutionId(
+                        "recovery-execution-not-committed");
 
         final ResourceId resourceId =
-                new ResourceId("recovery-destination-not-committed");
+                new ResourceId(
+                        "recovery-destination-not-committed");
 
         final DestinationExecutionReference reference =
                 new DestinationExecutionReference(
@@ -231,8 +253,10 @@ class OzhukuServerApplicationTests {
                 DestinationExecution.rehydrate(
                         reference,
                         DestinationExecutionStatus.FAILED,
-                        Instant.parse("2026-09-28T00:00:00Z"),
-                        Instant.parse("2026-09-28T00:00:10Z"));
+                        Instant.parse(
+                                "2026-09-28T00:00:00Z"),
+                        Instant.parse(
+                                "2026-09-28T00:00:10Z"));
 
         destinationExecutionRepository.save(
                 destinationExecution);
@@ -259,11 +283,14 @@ class OzhukuServerApplicationTests {
 
     @Test
     void shouldRemainUnresolvedWhenUnknownCommitCannotBeConfirmed() {
+
         final ExecutionId executionId =
-                new ExecutionId("recovery-execution-unknown");
+                new ExecutionId(
+                        "recovery-execution-unknown");
 
         final ResourceId resourceId =
-                new ResourceId("recovery-destination-unknown");
+                new ResourceId(
+                        "recovery-destination-unknown");
 
         final DestinationExecutionReference reference =
                 new DestinationExecutionReference(
@@ -274,8 +301,10 @@ class OzhukuServerApplicationTests {
                 DestinationExecution.rehydrate(
                         reference,
                         DestinationExecutionStatus.FAILED,
-                        Instant.parse("2026-09-28T00:01:00Z"),
-                        Instant.parse("2026-09-28T00:01:10Z"));
+                        Instant.parse(
+                                "2026-09-28T00:01:00Z"),
+                        Instant.parse(
+                                "2026-09-28T00:01:10Z"));
 
         destinationExecutionRepository.save(
                 destinationExecution);
@@ -298,5 +327,143 @@ class OzhukuServerApplicationTests {
         assertEquals(
                 RecoveryReason.DESTINATION_OUTCOME_UNKNOWN,
                 result.reason());
+    }
+
+    @Test
+    void shouldExecuteDestinationRecoveryAndPersistCommit()
+            throws IOException {
+
+        final Path sourcePath =
+                storageRoot
+                        .resolve("recovery")
+                        .resolve("input")
+                        .resolve("source.txt");
+
+        Files.createDirectories(
+                sourcePath.getParent());
+
+        Files.writeString(
+                sourcePath,
+                "Ozhuku destination recovery integration test");
+
+        final PipelineId pipelineId =
+                new PipelineId(
+                        "recovery-runtime-pipeline");
+
+        final PipelineVersion pipelineVersion =
+                new PipelineVersion(1L);
+
+        final ExecutionId executionId =
+                new ExecutionId(
+                        "recovery-runtime-execution");
+
+        final ResourceId sourceResourceId =
+                new ResourceId(
+                        "recovery-runtime-source");
+
+        final ResourceId destinationResourceId =
+                new ResourceId(
+                        "recovery-runtime-destination");
+
+        final Flow flow =
+                new Flow(
+                        new FlowId(
+                                "recovery-runtime-flow"),
+                        "Recovery Runtime Flow",
+                        FlowMode.RESOURCE_TRANSFER);
+
+        final Resource source =
+                new Resource(
+                        sourceResourceId,
+                        new ResourceLocation(
+                                "file:///recovery/input/source.txt"));
+
+        final Resource destination =
+                new Resource(
+                        destinationResourceId,
+                        new ResourceLocation(
+                                "file:///recovery/output/destination.txt"));
+
+        final PipelineConfiguration configuration =
+                new PipelineConfiguration(
+                        new PipelineDefinition(
+                                pipelineId,
+                                pipelineVersion,
+                                "Recovery runtime pipeline"),
+                        flow,
+                        source,
+                        destination,
+                        new DeliveryPolicy(
+                                ConflictBehavior.REPLACE));
+
+        pipelineConfigurationRepository.save(
+                configuration);
+
+        final ExecutionReference executionReference =
+                new ExecutionReference(
+                        executionId,
+                        pipelineId,
+                        pipelineVersion);
+
+        executionRepository.save(
+                Execution.rehydrate(
+                        executionReference,
+                        ExecutionStatus.RUNNING,
+                        Instant.parse(
+                                "2026-09-28T00:10:00Z"),
+                        null));
+
+        final DestinationExecutionReference
+                destinationExecutionReference =
+                new DestinationExecutionReference(
+                        executionId,
+                        destinationResourceId);
+
+        destinationExecutionRepository.save(
+                DestinationExecution.rehydrate(
+                        destinationExecutionReference,
+                        DestinationExecutionStatus.FAILED,
+                        Instant.parse(
+                                "2026-09-28T00:10:00Z"),
+                        Instant.parse(
+                                "2026-09-28T00:10:10Z")));
+
+        final DestinationCommitReference
+                destinationCommitReference =
+                new DestinationCommitReference(
+                        destinationExecutionReference);
+
+        destinationCommitRepository.save(
+                DestinationCommit.notCommitted(
+                        destinationCommitReference));
+
+        destinationRecoveryExecutor.execute(
+                destinationExecutionReference);
+
+        final Path destinationPath =
+                storageRoot
+                        .resolve("recovery")
+                        .resolve("output")
+                        .resolve("destination.txt");
+
+        assertTrue(
+                Files.exists(destinationPath));
+
+        assertEquals(
+                "Ozhuku destination recovery integration test",
+                Files.readString(destinationPath));
+
+        final DestinationCommit recoveredCommit =
+                destinationCommitRepository
+                        .findById(
+                                destinationCommitReference)
+                        .orElseThrow();
+
+        assertEquals(
+                CommitStatus.COMMITTED,
+                recoveredCommit.status());
+
+        assertTrue(
+                recoveredCommit.committedAt() != null);
     }
 }

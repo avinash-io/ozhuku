@@ -55,6 +55,7 @@ import io.github.avinashio.ozhuku.application.recovery.DestinationRecoveryServic
 import io.github.avinashio.ozhuku.application.recovery.DestinationRecoveryUseCase;
 import io.github.avinashio.ozhuku.application.recovery.PersistenceDestinationOutcomeInspector;
 import io.github.avinashio.ozhuku.persistence.postgres.PostgresPipelineConfigurationRepository;
+import io.github.avinashio.ozhuku.application.recovery.DestinationRecoveryExecutor;
 
 @Configuration
 public class RuntimeConfiguration {
@@ -360,6 +361,25 @@ public class RuntimeConfiguration {
 
         return new DestinationRecoveryUseCase(
                 recoveryDecisionProvider);
+    }
+
+    @Bean
+    public DestinationRecoveryExecutor destinationRecoveryExecutor(
+            final DestinationRecoveryService destinationRecoveryService,
+            final ExecutionRepository executionRepository,
+            final PipelineConfigurationResolutionService
+                    pipelineConfigurationResolutionService,
+            final ResourceTransferService resourceTransferService,
+            final DestinationCommitRepository destinationCommitRepository,
+            final Clock clock) {
+
+        return new DestinationRecoveryExecutor(
+                destinationRecoveryService,
+                executionRepository,
+                pipelineConfigurationResolutionService,
+                resourceTransferService,
+                destinationCommitRepository,
+                clock);
     }
 
 }
