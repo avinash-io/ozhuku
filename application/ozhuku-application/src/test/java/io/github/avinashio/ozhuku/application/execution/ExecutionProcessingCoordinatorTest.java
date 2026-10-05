@@ -30,9 +30,9 @@ import io.github.avinashio.ozhuku.domain.execution.SourceExecution;
 import io.github.avinashio.ozhuku.domain.execution.SourceExecutionReference;
 import io.github.avinashio.ozhuku.domain.execution.SourceExecutionStatus;
 import io.github.avinashio.ozhuku.domain.flow.Flow;
-import io.github.avinashio.ozhuku.domain.identity.FlowId;
 import io.github.avinashio.ozhuku.domain.flow.FlowMode;
 import io.github.avinashio.ozhuku.domain.identity.ExecutionId;
+import io.github.avinashio.ozhuku.domain.identity.FlowId;
 import io.github.avinashio.ozhuku.domain.identity.PipelineId;
 import io.github.avinashio.ozhuku.domain.identity.PipelineVersion;
 import io.github.avinashio.ozhuku.domain.identity.ProcessingIdentity;
@@ -531,6 +531,94 @@ class ExecutionProcessingCoordinatorTest {
                 createExecutionReference(),
                 createPipelinePlan(
                         DuplicatePolicy.SKIP_IF_PROCESSED),
+                request);
+
+        assertEquals(
+                ExecutionStatus.COMPLETED,
+                executionRepository
+                        .findById(EXECUTION_ID)
+                        .orElseThrow()
+                        .status());
+
+        assertEquals(
+                1,
+                processingRecordRepository.size());
+    }
+
+    @Test
+    void processResourceTransferShouldProcessWhenDuplicatePolicyAllowsReprocessing()
+            throws IOException {
+
+        createPendingExecution();
+
+        final ProcessingIdentity identity =
+                new ProcessingIdentity(
+                        new SourceIdentity(
+                                "file:///source"),
+                        PIPELINE_ID,
+                        PIPELINE_VERSION);
+
+        processingRecordRepository.save(
+                ProcessingRecord.processed(
+                        identity,
+                        new SourceFingerprint(
+                                "old-fingerprint"),
+                        FIXED_TIME));
+
+        final ResourceTransferRequest request =
+                new ResourceTransferRequest(
+                        resource("source"),
+                        resource("destination"),
+                        deliveryPolicy());
+
+        service.processResourceTransfer(
+                createExecutionReference(),
+                createPipelinePlan(
+                        DuplicatePolicy.REPROCESS_IF_CHANGED),
+                request);
+
+        assertEquals(
+                ExecutionStatus.COMPLETED,
+                executionRepository
+                        .findById(EXECUTION_ID)
+                        .orElseThrow()
+                        .status());
+
+        assertEquals(
+                1,
+                processingRecordRepository.size());
+    }
+
+    @Test
+    void processResourceTransferShouldProcessWhenDuplicatePolicyIsAlwaysProcess()
+            throws IOException {
+
+        createPendingExecution();
+
+        final ProcessingIdentity identity =
+                new ProcessingIdentity(
+                        new SourceIdentity(
+                                "file:///source"),
+                        PIPELINE_ID,
+                        PIPELINE_VERSION);
+
+        processingRecordRepository.save(
+                ProcessingRecord.processed(
+                        identity,
+                        new SourceFingerprint(
+                                "fingerprint-1"),
+                        FIXED_TIME));
+
+        final ResourceTransferRequest request =
+                new ResourceTransferRequest(
+                        resource("source"),
+                        resource("destination"),
+                        deliveryPolicy());
+
+        service.processResourceTransfer(
+                createExecutionReference(),
+                createPipelinePlan(
+                        DuplicatePolicy.ALWAYS_PROCESS),
                 request);
 
         assertEquals(
