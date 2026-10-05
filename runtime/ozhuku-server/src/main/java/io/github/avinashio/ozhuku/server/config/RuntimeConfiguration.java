@@ -212,12 +212,15 @@ public class RuntimeConfiguration {
             final FlowExecutionRepository flowExecutionRepository,
             final SourceExecutionRepository sourceExecutionRepository,
             final DestinationExecutionRepository
-                    destinationExecutionRepository) {
+                    destinationExecutionRepository,
+            final DestinationCommitRepository
+                    destinationCommitRepository) {
         return new ExecutionInitializationService(
                 executionRepository,
                 flowExecutionRepository,
                 sourceExecutionRepository,
-                destinationExecutionRepository);
+                destinationExecutionRepository,
+                destinationCommitRepository);
     }
 
     @Bean

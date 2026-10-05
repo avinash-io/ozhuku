@@ -4,6 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import io.github.avinashio.ozhuku.domain.execution.CommitStatus;
+import io.github.avinashio.ozhuku.domain.execution.DestinationCommit;
+import io.github.avinashio.ozhuku.domain.execution.DestinationCommitReference;
 import io.github.avinashio.ozhuku.domain.execution.DestinationExecution;
 import io.github.avinashio.ozhuku.domain.execution.DestinationExecutionReference;
 import io.github.avinashio.ozhuku.domain.execution.DestinationExecutionStatus;
@@ -20,6 +23,7 @@ import io.github.avinashio.ozhuku.domain.identity.FlowId;
 import io.github.avinashio.ozhuku.domain.identity.PipelineId;
 import io.github.avinashio.ozhuku.domain.identity.PipelineVersion;
 import io.github.avinashio.ozhuku.domain.identity.ResourceId;
+import io.github.avinashio.ozhuku.persistence.DestinationCommitRepository;
 import io.github.avinashio.ozhuku.persistence.DestinationExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.ExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.FlowExecutionRepository;
@@ -50,6 +54,7 @@ class ExecutionInitializationServiceTest {
     private FakeFlowExecutionRepository flowExecutionRepository;
     private FakeSourceExecutionRepository sourceExecutionRepository;
     private FakeDestinationExecutionRepository destinationExecutionRepository;
+    private FakeDestinationCommitRepository destinationCommitRepository;
 
     private ExecutionInitializationService service;
 
@@ -69,11 +74,15 @@ class ExecutionInitializationServiceTest {
         destinationExecutionRepository =
                 new FakeDestinationExecutionRepository();
 
+        destinationCommitRepository =
+                new FakeDestinationCommitRepository();
+
         service = new ExecutionInitializationService(
                 executionRepository,
                 flowExecutionRepository,
                 sourceExecutionRepository,
-                destinationExecutionRepository);
+                destinationExecutionRepository,
+                destinationCommitRepository);
     }
 
     @Test
@@ -137,6 +146,19 @@ class ExecutionInitializationServiceTest {
 
         assertNull(destinationExecution.startedAt());
         assertNull(destinationExecution.completedAt());
+
+        final DestinationCommit destinationCommit =
+                destinationCommitRepository
+                        .findById(
+                                new DestinationCommitReference(
+                                        destinationExecution.reference()))
+                        .orElseThrow();
+
+        assertEquals(
+                CommitStatus.NOT_COMMITTED,
+                destinationCommit.status());
+
+        assertNull(destinationCommit.committedAt());
     }
 
     @Test
@@ -394,6 +416,10 @@ class ExecutionInitializationServiceTest {
         assertEquals(
                 0,
                 destinationExecutionRepository.saveCount);
+
+        assertEquals(
+                0,
+                destinationCommitRepository.saveCount);
     }
 
     private static ExecutionReference createExecutionReference() {
@@ -551,4 +577,32 @@ class ExecutionInitializationServiceTest {
             return executionId + ":" + resourceId;
         }
     }
+
+    private static final class FakeDestinationCommitRepository
+            implements DestinationCommitRepository {
+
+        private final Map<DestinationCommitReference, DestinationCommit>
+                commits = new HashMap<>();
+
+        private int saveCount;
+
+        @Override
+        public Optional<DestinationCommit> findById(
+                final DestinationCommitReference reference) {
+
+            return Optional.ofNullable(commits.get(reference));
+        }
+
+        @Override
+        public void save(
+                final DestinationCommit destinationCommit) {
+
+            saveCount++;
+
+            commits.put(
+                    destinationCommit.reference(),
+                    destinationCommit);
+        }
+    }
+
 }

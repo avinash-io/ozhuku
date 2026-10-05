@@ -1,5 +1,7 @@
 package io.github.avinashio.ozhuku.application.initialization;
 
+import io.github.avinashio.ozhuku.domain.execution.DestinationCommit;
+import io.github.avinashio.ozhuku.domain.execution.DestinationCommitReference;
 import io.github.avinashio.ozhuku.domain.execution.DestinationExecution;
 import io.github.avinashio.ozhuku.domain.execution.DestinationExecutionReference;
 import io.github.avinashio.ozhuku.domain.execution.Execution;
@@ -10,6 +12,7 @@ import io.github.avinashio.ozhuku.domain.execution.SourceExecutionReference;
 import io.github.avinashio.ozhuku.domain.identity.ExecutionId;
 import io.github.avinashio.ozhuku.domain.identity.FlowId;
 import io.github.avinashio.ozhuku.domain.identity.ResourceId;
+import io.github.avinashio.ozhuku.persistence.DestinationCommitRepository;
 import io.github.avinashio.ozhuku.persistence.DestinationExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.ExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.FlowExecutionRepository;
@@ -22,12 +25,14 @@ public final class ExecutionInitializationService {
     private final FlowExecutionRepository flowExecutionRepository;
     private final SourceExecutionRepository sourceExecutionRepository;
     private final DestinationExecutionRepository destinationExecutionRepository;
+    private final DestinationCommitRepository destinationCommitRepository;
 
     public ExecutionInitializationService(
             final ExecutionRepository executionRepository,
             final FlowExecutionRepository flowExecutionRepository,
             final SourceExecutionRepository sourceExecutionRepository,
-            final DestinationExecutionRepository destinationExecutionRepository) {
+            final DestinationExecutionRepository destinationExecutionRepository,
+            final DestinationCommitRepository destinationCommitRepository) {
 
         this.executionRepository = Objects.requireNonNull(
                 executionRepository,
@@ -44,6 +49,10 @@ public final class ExecutionInitializationService {
         this.destinationExecutionRepository = Objects.requireNonNull(
                 destinationExecutionRepository,
                 "destinationExecutionRepository must not be null");
+
+        this.destinationCommitRepository = Objects.requireNonNull(
+                destinationCommitRepository,
+                "destinationCommitRepository must not be null");
     }
 
     public void initialize(
@@ -81,11 +90,16 @@ public final class ExecutionInitializationService {
                         executionId,
                         destinationResourceId);
 
+        final DestinationCommitReference destinationCommitReference =
+                new DestinationCommitReference(
+                        destinationExecutionReference);
+
         validateDoesNotExist(
                 executionId,
                 flowId,
                 sourceExecutionReference,
-                destinationExecutionReference);
+                destinationExecutionReference,
+                destinationCommitReference);
 
         final Execution execution =
                 new Execution(executionReference);
@@ -103,17 +117,23 @@ public final class ExecutionInitializationService {
                 new DestinationExecution(
                         destinationExecutionReference);
 
+        final DestinationCommit destinationCommit =
+                DestinationCommit.notCommitted(
+                        destinationCommitReference);
+
         executionRepository.save(execution);
         flowExecutionRepository.save(flowExecution);
         sourceExecutionRepository.save(sourceExecution);
         destinationExecutionRepository.save(destinationExecution);
+        destinationCommitRepository.save(destinationCommit);
     }
 
     private void validateDoesNotExist(
             final ExecutionId executionId,
             final FlowId flowId,
             final SourceExecutionReference sourceExecutionReference,
-            final DestinationExecutionReference destinationExecutionReference) {
+            final DestinationExecutionReference destinationExecutionReference,
+            final DestinationCommitReference destinationCommitReference) {
 
         if (executionRepository.findById(executionId).isPresent()) {
             throw new IllegalStateException(
@@ -155,6 +175,21 @@ public final class ExecutionInitializationService {
                             + destinationExecutionReference.executionId()
                             + ", resourceId="
                             + destinationExecutionReference.resourceId());
+        }
+
+        if (destinationCommitRepository
+                .findById(destinationCommitReference)
+                .isPresent()) {
+
+            throw new IllegalStateException(
+                    "Destination commit already exists: executionId="
+                            + destinationCommitReference
+                            .destinationExecutionReference()
+                            .executionId()
+                            + ", resourceId="
+                            + destinationCommitReference
+                            .destinationExecutionReference()
+                            .resourceId());
         }
     }
 }

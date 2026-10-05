@@ -21,6 +21,8 @@ import io.github.avinashio.ozhuku.domain.execution.Execution;
 import io.github.avinashio.ozhuku.domain.execution.ExecutionReference;
 import io.github.avinashio.ozhuku.domain.execution.FlowExecution;
 import io.github.avinashio.ozhuku.domain.execution.SourceExecution;
+import io.github.avinashio.ozhuku.domain.execution.DestinationCommit;
+import io.github.avinashio.ozhuku.domain.execution.DestinationCommitReference;
 import io.github.avinashio.ozhuku.domain.execution.DestinationExecution;
 import io.github.avinashio.ozhuku.domain.flow.Flow;
 import io.github.avinashio.ozhuku.domain.flow.FlowMode;
@@ -39,6 +41,7 @@ import io.github.avinashio.ozhuku.domain.resource.ResourceLocation;
 import io.github.avinashio.ozhuku.format.FormatReadResult;
 import io.github.avinashio.ozhuku.format.FormatReader;
 import io.github.avinashio.ozhuku.format.FormatWriter;
+import io.github.avinashio.ozhuku.persistence.DestinationCommitRepository;
 import io.github.avinashio.ozhuku.persistence.DestinationExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.ExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.FlowExecutionRepository;
@@ -95,12 +98,16 @@ class ExecutionRunServiceTest {
         destinationExecutionRepository =
                 new InMemoryDestinationExecutionRepository();
 
+        final DestinationCommitRepository destinationCommitRepository =
+                new InMemoryDestinationCommitRepository();
+
         final ExecutionInitializationService initializationService =
                 new ExecutionInitializationService(
                         executionRepository,
                         flowExecutionRepository,
                         sourceExecutionRepository,
-                        destinationExecutionRepository);
+                        destinationExecutionRepository,
+                        destinationCommitRepository);
 
         final ExecutionProcessingCoordinator processingCoordinator =
                 createProcessingCoordinator();
@@ -537,4 +544,28 @@ class ExecutionRunServiceTest {
                     record);
         }
     }
+
+    private static final class InMemoryDestinationCommitRepository
+            implements DestinationCommitRepository {
+
+        private final Map<DestinationCommitReference, DestinationCommit>
+                commits = new HashMap<>();
+
+        @Override
+        public Optional<DestinationCommit> findById(
+                final DestinationCommitReference reference) {
+
+            return Optional.ofNullable(commits.get(reference));
+        }
+
+        @Override
+        public void save(
+                final DestinationCommit destinationCommit) {
+
+            commits.put(
+                    destinationCommit.reference(),
+                    destinationCommit);
+        }
+    }
+
 }
