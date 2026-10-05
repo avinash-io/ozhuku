@@ -27,8 +27,6 @@ import io.github.avinashio.ozhuku.application.source.SourceFingerprintService;
 import io.github.avinashio.ozhuku.application.source.SourceIdentityService;
 import io.github.avinashio.ozhuku.application.transfer.ResourceTransferService;
 import io.github.avinashio.ozhuku.domain.deduplication.DeduplicationEvaluator;
-import io.github.avinashio.ozhuku.domain.identity.SourceFingerprint;
-import io.github.avinashio.ozhuku.domain.identity.SourceIdentity;
 import io.github.avinashio.ozhuku.format.FormatReader;
 import io.github.avinashio.ozhuku.format.FormatWriter;
 import io.github.avinashio.ozhuku.format.csv.CsvFormatReader;
@@ -52,6 +50,8 @@ import io.github.avinashio.ozhuku.persistence.postgres.PostgresSourceExecutionRe
 import io.github.avinashio.ozhuku.storage.StorageOutputProvider;
 import io.github.avinashio.ozhuku.storage.StorageReader;
 import io.github.avinashio.ozhuku.storage.StorageWriter;
+import io.github.avinashio.ozhuku.storage.file.FileSourceFingerprintProvider;
+import io.github.avinashio.ozhuku.storage.file.FileSourceIdentityProvider;
 import io.github.avinashio.ozhuku.storage.file.FileStorageOutputProvider;
 import io.github.avinashio.ozhuku.storage.file.FileStoragePathResolver;
 import io.github.avinashio.ozhuku.storage.file.FileStorageReader;
@@ -258,19 +258,17 @@ public class RuntimeConfiguration {
     }
 
     @Bean
-    public SourceIdentityService sourceIdentityService() {
+    public SourceIdentityService sourceIdentityService(
+            final FileStoragePathResolver pathResolver) {
         return new SourceIdentityService(
-                resource ->
-                        new SourceIdentity(
-                                resource.id().value()));
+                new FileSourceIdentityProvider(pathResolver));
     }
 
     @Bean
-    public SourceFingerprintService sourceFingerprintService() {
+    public SourceFingerprintService sourceFingerprintService(
+            final FileStoragePathResolver pathResolver) {
         return new SourceFingerprintService(
-                resource ->
-                        new SourceFingerprint(
-                                resource.location().value()));
+                new FileSourceFingerprintProvider(pathResolver));
     }
 
     @Bean
