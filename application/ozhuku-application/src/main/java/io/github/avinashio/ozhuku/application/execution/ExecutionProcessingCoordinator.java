@@ -7,10 +7,14 @@ import io.github.avinashio.ozhuku.application.processing.ResourceTransferRequest
 import io.github.avinashio.ozhuku.application.orchestration.ExecutionOrchestrationService;
 import io.github.avinashio.ozhuku.domain.deduplication.DeduplicationDecision;
 import io.github.avinashio.ozhuku.domain.deduplication.ProcessingRecord;
+import io.github.avinashio.ozhuku.domain.execution.DestinationCommit;
+import io.github.avinashio.ozhuku.domain.execution.DestinationCommitReference;
+import io.github.avinashio.ozhuku.domain.execution.DestinationExecutionReference;
 import io.github.avinashio.ozhuku.domain.execution.ExecutionReference;
 import io.github.avinashio.ozhuku.domain.identity.ExecutionId;
 import io.github.avinashio.ozhuku.domain.identity.FlowId;
 import io.github.avinashio.ozhuku.domain.pipeline.PipelinePlan;
+import io.github.avinashio.ozhuku.persistence.DestinationCommitRepository;
 import io.github.avinashio.ozhuku.persistence.ProcessingRecordRepository;
 import java.io.IOException;
 import java.time.Clock;
@@ -24,6 +28,7 @@ public final class ExecutionProcessingCoordinator {
     private final ExecutionResourceValidator executionResourceValidator;
     private final ExecutionDeduplicationService executionDeduplicationService;
     private final ProcessingRecordRepository processingRecordRepository;
+    private final DestinationCommitRepository destinationCommitRepository;
     private final Clock clock;
 
     public ExecutionProcessingCoordinator(
@@ -32,6 +37,7 @@ public final class ExecutionProcessingCoordinator {
             final ExecutionResourceValidator executionResourceValidator,
             final ExecutionDeduplicationService executionDeduplicationService,
             final ProcessingRecordRepository processingRecordRepository,
+            final DestinationCommitRepository destinationCommitRepository,
             final Clock clock) {
 
         this.executionOrchestrationService =
@@ -58,6 +64,11 @@ public final class ExecutionProcessingCoordinator {
                 Objects.requireNonNull(
                         processingRecordRepository,
                         "processingRecordRepository must not be null");
+
+        this.destinationCommitRepository =
+                Objects.requireNonNull(
+                        destinationCommitRepository,
+                        "destinationCommitRepository must not be null");
 
         this.clock =
                 Objects.requireNonNull(
@@ -129,6 +140,10 @@ public final class ExecutionProcessingCoordinator {
             executionProcessingService.processResourceTransfer(
                     executionId,
                     request);
+
+            saveDestinationCommit(
+                    executionId,
+                    request.destination().id());
 
             saveProcessedRecord(
                     deduplicationResult);
@@ -222,6 +237,10 @@ public final class ExecutionProcessingCoordinator {
                     executionId,
                     request);
 
+            saveDestinationCommit(
+                    executionId,
+                    request.destination().id());
+
             saveProcessedRecord(
                     deduplicationResult);
 
@@ -247,6 +266,29 @@ public final class ExecutionProcessingCoordinator {
                     exception);
             throw exception;
         }
+    }
+
+    private void saveDestinationCommit(
+            final ExecutionId executionId,
+            final io.github.avinashio.ozhuku.domain.identity.ResourceId
+                    destinationResourceId) {
+
+        final DestinationExecutionReference destinationExecutionReference =
+                new DestinationExecutionReference(
+                        executionId,
+                        destinationResourceId);
+
+        final DestinationCommitReference destinationCommitReference =
+                new DestinationCommitReference(
+                        destinationExecutionReference);
+
+        final DestinationCommit destinationCommit =
+                DestinationCommit.committed(
+                        destinationCommitReference,
+                        Instant.now(clock));
+
+        destinationCommitRepository.save(
+                destinationCommit);
     }
 
     private void saveProcessedRecord(

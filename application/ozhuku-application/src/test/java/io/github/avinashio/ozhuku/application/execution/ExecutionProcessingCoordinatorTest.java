@@ -18,6 +18,9 @@ import io.github.avinashio.ozhuku.domain.deduplication.DuplicatePolicy;
 import io.github.avinashio.ozhuku.domain.deduplication.ProcessingRecord;
 import io.github.avinashio.ozhuku.domain.delivery.ConflictBehavior;
 import io.github.avinashio.ozhuku.domain.delivery.DeliveryPolicy;
+import io.github.avinashio.ozhuku.domain.execution.CommitStatus;
+import io.github.avinashio.ozhuku.domain.execution.DestinationCommit;
+import io.github.avinashio.ozhuku.domain.execution.DestinationCommitReference;
 import io.github.avinashio.ozhuku.domain.execution.DestinationExecution;
 import io.github.avinashio.ozhuku.domain.execution.DestinationExecutionReference;
 import io.github.avinashio.ozhuku.domain.execution.DestinationExecutionStatus;
@@ -50,6 +53,7 @@ import io.github.avinashio.ozhuku.domain.resource.ResourceLocation;
 import io.github.avinashio.ozhuku.format.FormatReadResult;
 import io.github.avinashio.ozhuku.format.FormatReader;
 import io.github.avinashio.ozhuku.format.FormatWriter;
+import io.github.avinashio.ozhuku.persistence.DestinationCommitRepository;
 import io.github.avinashio.ozhuku.persistence.DestinationExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.ExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.FlowExecutionRepository;
@@ -102,6 +106,7 @@ class ExecutionProcessingCoordinatorTest {
     private FakeFlowExecutionRepository flowExecutionRepository;
     private FakeSourceExecutionRepository sourceExecutionRepository;
     private FakeDestinationExecutionRepository destinationExecutionRepository;
+    private FakeDestinationCommitRepository destinationCommitRepository;
     private FakeProcessingRecordRepository processingRecordRepository;
 
     private ExecutionProcessingCoordinator service;
@@ -119,6 +124,9 @@ class ExecutionProcessingCoordinatorTest {
 
         destinationExecutionRepository =
                 new FakeDestinationExecutionRepository();
+
+        destinationCommitRepository =
+                new FakeDestinationCommitRepository();
 
         processingRecordRepository =
                 new FakeProcessingRecordRepository();
@@ -239,6 +247,8 @@ class ExecutionProcessingCoordinatorTest {
                         .orElseThrow()
                         .status());
 
+        assertDestinationCommitIsCommitted();
+
         assertEquals(
                 1,
                 processingRecordRepository.size());
@@ -317,6 +327,8 @@ class ExecutionProcessingCoordinatorTest {
                                 DESTINATION_RESOURCE_ID)
                         .orElseThrow()
                         .status());
+
+        assertDestinationCommitIsCommitted();
 
         assertEquals(
                 1,
@@ -747,6 +759,27 @@ class ExecutionProcessingCoordinatorTest {
                         .status());
     }
 
+    private void assertDestinationCommitIsCommitted() {
+        final DestinationCommitReference reference =
+                new DestinationCommitReference(
+                        new DestinationExecutionReference(
+                                EXECUTION_ID,
+                                DESTINATION_RESOURCE_ID));
+
+        final DestinationCommit destinationCommit =
+                destinationCommitRepository
+                        .findById(reference)
+                        .orElseThrow();
+
+        assertEquals(
+                CommitStatus.COMMITTED,
+                destinationCommit.status());
+
+        assertEquals(
+                FIXED_TIME,
+                destinationCommit.committedAt());
+    }
+
     private void createPendingExecution() {
         executionRepository.save(
                 new Execution(
@@ -768,6 +801,13 @@ class ExecutionProcessingCoordinatorTest {
                         new DestinationExecutionReference(
                                 EXECUTION_ID,
                                 DESTINATION_RESOURCE_ID)));
+
+        destinationCommitRepository.save(
+                DestinationCommit.notCommitted(
+                        new DestinationCommitReference(
+                                new DestinationExecutionReference(
+                                        EXECUTION_ID,
+                                        DESTINATION_RESOURCE_ID))));
     }
 
     private ExecutionProcessingCoordinator createService(
@@ -824,6 +864,7 @@ class ExecutionProcessingCoordinatorTest {
                 executionResourceValidator,
                 executionDeduplicationService,
                 processingRecordRepository,
+                destinationCommitRepository,
                 clock);
     }
 
@@ -863,6 +904,7 @@ class ExecutionProcessingCoordinatorTest {
                 executionResourceValidator,
                 executionDeduplicationService,
                 processingRecordRepository,
+                destinationCommitRepository,
                 clock);
     }
 
@@ -1198,6 +1240,30 @@ class ExecutionProcessingCoordinatorTest {
                 final ResourceId resourceId) {
 
             return executionId + ":" + resourceId;
+        }
+    }
+
+    private static final class FakeDestinationCommitRepository
+            implements DestinationCommitRepository {
+
+        private final Map<DestinationCommitReference, DestinationCommit>
+                commits = new HashMap<>();
+
+        @Override
+        public Optional<DestinationCommit> findById(
+                final DestinationCommitReference reference) {
+
+            return Optional.ofNullable(
+                    commits.get(reference));
+        }
+
+        @Override
+        public void save(
+                final DestinationCommit destinationCommit) {
+
+            commits.put(
+                    destinationCommit.reference(),
+                    destinationCommit);
         }
     }
 

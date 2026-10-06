@@ -305,6 +305,8 @@ public class RuntimeConfiguration {
                     executionDeduplicationService,
             final ProcessingRecordRepository
                     processingRecordRepository,
+            final DestinationCommitRepository
+                    destinationCommitRepository,
             final Clock clock) {
         return new ExecutionProcessingCoordinator(
                 executionOrchestrationService,
@@ -312,6 +314,7 @@ public class RuntimeConfiguration {
                 executionResourceValidator,
                 executionDeduplicationService,
                 processingRecordRepository,
+                destinationCommitRepository,
                 clock);
     }
 

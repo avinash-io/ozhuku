@@ -17,13 +17,13 @@ import io.github.avinashio.ozhuku.domain.deduplication.DuplicatePolicy;
 import io.github.avinashio.ozhuku.domain.deduplication.ProcessingRecord;
 import io.github.avinashio.ozhuku.domain.delivery.ConflictBehavior;
 import io.github.avinashio.ozhuku.domain.delivery.DeliveryPolicy;
+import io.github.avinashio.ozhuku.domain.execution.DestinationCommit;
+import io.github.avinashio.ozhuku.domain.execution.DestinationCommitReference;
+import io.github.avinashio.ozhuku.domain.execution.DestinationExecution;
 import io.github.avinashio.ozhuku.domain.execution.Execution;
 import io.github.avinashio.ozhuku.domain.execution.ExecutionReference;
 import io.github.avinashio.ozhuku.domain.execution.FlowExecution;
 import io.github.avinashio.ozhuku.domain.execution.SourceExecution;
-import io.github.avinashio.ozhuku.domain.execution.DestinationCommit;
-import io.github.avinashio.ozhuku.domain.execution.DestinationCommitReference;
-import io.github.avinashio.ozhuku.domain.execution.DestinationExecution;
 import io.github.avinashio.ozhuku.domain.flow.Flow;
 import io.github.avinashio.ozhuku.domain.flow.FlowMode;
 import io.github.avinashio.ozhuku.domain.identity.ExecutionId;
@@ -81,6 +81,8 @@ class ExecutionRunServiceTest {
 
     private DestinationExecutionRepository destinationExecutionRepository;
 
+    private DestinationCommitRepository destinationCommitRepository;
+
     private ExecutionRunService service;
 
     @BeforeEach
@@ -98,7 +100,7 @@ class ExecutionRunServiceTest {
         destinationExecutionRepository =
                 new InMemoryDestinationExecutionRepository();
 
-        final DestinationCommitRepository destinationCommitRepository =
+        destinationCommitRepository =
                 new InMemoryDestinationCommitRepository();
 
         final ExecutionInitializationService initializationService =
@@ -324,6 +326,7 @@ class ExecutionRunServiceTest {
                 executionResourceValidator,
                 executionDeduplicationService,
                 processingRecordRepository,
+                destinationCommitRepository,
                 clock);
     }
 
@@ -567,5 +570,4 @@ class ExecutionRunServiceTest {
                     destinationCommit);
         }
     }
-
 }

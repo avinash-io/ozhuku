@@ -173,6 +173,7 @@ class ConfiguredPipelineExecutionServiceTest {
                                 destinationExecutionRepository),
                         executionDeduplicationService,
                         processingRecordRepository,
+                        destinationCommitRepository,
                         clock);
 
         final ExecutionRunService executionRunService =
@@ -410,6 +411,7 @@ class ConfiguredPipelineExecutionServiceTest {
                                 destinationExecutionRepository),
                         executionDeduplicationService,
                         processingRecordRepository,
+                        destinationCommitRepository,
                         clock);
 
         return new PipelineExecutionService(
@@ -636,5 +638,4 @@ class ConfiguredPipelineExecutionServiceTest {
                     destinationCommit);
         }
     }
-
 }

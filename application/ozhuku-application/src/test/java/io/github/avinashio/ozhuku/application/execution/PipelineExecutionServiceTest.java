@@ -171,6 +171,7 @@ class PipelineExecutionServiceTest {
                                 destinationExecutionRepository),
                         executionDeduplicationService,
                         processingRecordRepository,
+                        destinationCommitRepository,
                         clock);
 
         final ExecutionRunService executionRunService =
@@ -569,7 +570,6 @@ class PipelineExecutionServiceTest {
         }
     }
 
-
     private static final class InMemoryDestinationCommitRepository
             implements DestinationCommitRepository {
 
@@ -592,5 +592,4 @@ class PipelineExecutionServiceTest {
                     destinationCommit);
         }
     }
-
 }
