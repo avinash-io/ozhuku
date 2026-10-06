@@ -137,9 +137,14 @@ class ExecutionProcessingServiceTest {
                         formatReader,
                         formatWriter);
 
-        service.processRecordProcessing(
-                EXECUTION_ID,
-                request);
+        final long lastRecordSequence =
+                service.processRecordProcessing(
+                        EXECUTION_ID,
+                        request);
+
+        assertEquals(
+                1,
+                lastRecordSequence);
 
         assertEquals(
                 List.of(firstRecord, secondRecord),

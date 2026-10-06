@@ -29,7 +29,7 @@ public final class RecordProcessingService {
                 "storageOutputProvider must not be null");
     }
 
-    public void process(
+    public long process(
             final Resource source,
             final Resource destination,
             final DeliveryPolicy deliveryPolicy,
@@ -61,21 +61,29 @@ public final class RecordProcessingService {
             formatReader.open(input);
             formatWriter.open(output.stream());
 
+            final long lastRecordSequence;
+
             try {
-                readAndWrite(formatReader, formatWriter);
+                lastRecordSequence =
+                        readAndWrite(formatReader, formatWriter);
             } finally {
                 formatWriter.close();
                 formatReader.close();
             }
 
             output.commit();
+
+            return lastRecordSequence;
         }
     }
 
-    private void readAndWrite(
+    private long readAndWrite(
             final FormatReader formatReader,
             final FormatWriter formatWriter)
             throws IOException {
+
+        long lastRecordSequence = -1;
+
         while (true) {
             final FormatReadResult result = formatReader.read();
 
@@ -83,10 +91,11 @@ public final class RecordProcessingService {
                 case RECORD:
                     final Record record = result.record();
                     formatWriter.write(record);
+                    lastRecordSequence = record.sequence();
                     break;
 
                 case END_OF_INPUT:
-                    return;
+                    return lastRecordSequence;
 
                 case ERROR:
                     throw new IOException(

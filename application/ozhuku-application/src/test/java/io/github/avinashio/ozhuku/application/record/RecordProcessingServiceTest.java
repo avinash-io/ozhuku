@@ -49,12 +49,15 @@ class RecordProcessingServiceTest {
                         storageReader,
                         outputProvider);
 
-        service.process(
-                resource("source.csv"),
-                resource("destination.csv"),
-                new DeliveryPolicy(ConflictBehavior.REPLACE),
-                formatReader,
-                formatWriter);
+        final long lastRecordSequence =
+                service.process(
+                        resource("source.csv"),
+                        resource("destination.csv"),
+                        new DeliveryPolicy(ConflictBehavior.REPLACE),
+                        formatReader,
+                        formatWriter);
+
+        assertEquals(1, lastRecordSequence);
 
         assertEquals(
                 List.of(firstRecord, secondRecord),
@@ -64,6 +67,37 @@ class RecordProcessingServiceTest {
         assertTrue(formatReader.closed());
         assertTrue(formatWriter.opened());
         assertTrue(formatWriter.closed());
+        assertTrue(outputProvider.outputCommitted());
+        assertTrue(outputProvider.outputClosed());
+        assertTrue(storageReader.inputClosed());
+    }
+
+    @Test
+    void shouldReturnMinusOneWhenInputIsEmpty() throws Exception {
+        final FakeStorageReader storageReader = new FakeStorageReader();
+        final FakeStorageOutputProvider outputProvider =
+                new FakeStorageOutputProvider();
+
+        final FakeFormatReader formatReader =
+                new FakeFormatReader();
+
+        final FakeFormatWriter formatWriter =
+                new FakeFormatWriter();
+
+        final RecordProcessingService service =
+                new RecordProcessingService(
+                        storageReader,
+                        outputProvider);
+
+        final long lastRecordSequence =
+                service.process(
+                        resource("source.csv"),
+                        resource("destination.csv"),
+                        new DeliveryPolicy(ConflictBehavior.REPLACE),
+                        formatReader,
+                        formatWriter);
+
+        assertEquals(-1, lastRecordSequence);
         assertTrue(outputProvider.outputCommitted());
         assertTrue(outputProvider.outputClosed());
         assertTrue(storageReader.inputClosed());

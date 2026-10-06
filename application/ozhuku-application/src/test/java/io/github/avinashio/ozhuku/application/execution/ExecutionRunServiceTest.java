@@ -45,6 +45,7 @@ import io.github.avinashio.ozhuku.persistence.DestinationCommitRepository;
 import io.github.avinashio.ozhuku.persistence.DestinationExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.ExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.FlowExecutionRepository;
+import io.github.avinashio.ozhuku.persistence.ProcessingCheckpointRepository;
 import io.github.avinashio.ozhuku.persistence.ProcessingRecordRepository;
 import io.github.avinashio.ozhuku.persistence.SourceExecutionRepository;
 import io.github.avinashio.ozhuku.storage.StorageOutput;
@@ -83,6 +84,8 @@ class ExecutionRunServiceTest {
 
     private DestinationCommitRepository destinationCommitRepository;
 
+    private ProcessingCheckpointRepository processingCheckpointRepository;
+
     private ExecutionRunService service;
 
     @BeforeEach
@@ -102,6 +105,9 @@ class ExecutionRunServiceTest {
 
         destinationCommitRepository =
                 new InMemoryDestinationCommitRepository();
+
+        processingCheckpointRepository =
+                new InMemoryProcessingCheckpointRepository();
 
         final ExecutionInitializationService initializationService =
                 new ExecutionInitializationService(
@@ -326,6 +332,7 @@ class ExecutionRunServiceTest {
                 executionResourceValidator,
                 executionDeduplicationService,
                 processingRecordRepository,
+                processingCheckpointRepository,
                 destinationCommitRepository,
                 clock);
     }
@@ -545,6 +552,39 @@ class ExecutionRunServiceTest {
             records.put(
                     record.identity(),
                     record);
+        }
+    }
+
+    private static final class InMemoryProcessingCheckpointRepository
+            implements ProcessingCheckpointRepository {
+
+        private final Map<
+                io.github.avinashio.ozhuku.domain.execution
+                        .SourceExecutionReference,
+                io.github.avinashio.ozhuku.domain.checkpoint
+                        .ProcessingCheckpoint> checkpoints =
+                new HashMap<>();
+
+        @Override
+        public Optional<
+                io.github.avinashio.ozhuku.domain.checkpoint
+                        .ProcessingCheckpoint>
+        findBySourceExecution(
+                final io.github.avinashio.ozhuku.domain.execution
+                        .SourceExecutionReference reference) {
+
+            return Optional.ofNullable(
+                    checkpoints.get(reference));
+        }
+
+        @Override
+        public void save(
+                final io.github.avinashio.ozhuku.domain.checkpoint
+                        .ProcessingCheckpoint checkpoint) {
+
+            checkpoints.put(
+                    checkpoint.sourceExecutionReference(),
+                    checkpoint);
         }
     }
 

@@ -38,6 +38,7 @@ import io.github.avinashio.ozhuku.persistence.DestinationExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.ExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.FlowExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.PipelineConfigurationRepository;
+import io.github.avinashio.ozhuku.persistence.ProcessingCheckpointRepository;
 import io.github.avinashio.ozhuku.persistence.ProcessingRecordRepository;
 import io.github.avinashio.ozhuku.persistence.SourceExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.postgres.PostgresDestinationCommitRepository;
@@ -45,6 +46,7 @@ import io.github.avinashio.ozhuku.persistence.postgres.PostgresDestinationExecut
 import io.github.avinashio.ozhuku.persistence.postgres.PostgresExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.postgres.PostgresFlowExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.postgres.PostgresPipelineConfigurationRepository;
+import io.github.avinashio.ozhuku.persistence.postgres.PostgresProcessingCheckpointRepository;
 import io.github.avinashio.ozhuku.persistence.postgres.PostgresProcessingRecordRepository;
 import io.github.avinashio.ozhuku.persistence.postgres.PostgresSourceExecutionRepository;
 import io.github.avinashio.ozhuku.storage.StorageOutputProvider;
@@ -151,6 +153,12 @@ public class RuntimeConfiguration {
     public ProcessingRecordRepository processingRecordRepository(
             final DataSource dataSource) {
         return new PostgresProcessingRecordRepository(dataSource);
+    }
+
+    @Bean
+    public ProcessingCheckpointRepository processingCheckpointRepository(
+            final DataSource dataSource) {
+        return new PostgresProcessingCheckpointRepository(dataSource);
     }
 
     @Bean
@@ -305,6 +313,8 @@ public class RuntimeConfiguration {
                     executionDeduplicationService,
             final ProcessingRecordRepository
                     processingRecordRepository,
+            final ProcessingCheckpointRepository
+                    processingCheckpointRepository,
             final DestinationCommitRepository
                     destinationCommitRepository,
             final Clock clock) {
@@ -314,6 +324,7 @@ public class RuntimeConfiguration {
                 executionResourceValidator,
                 executionDeduplicationService,
                 processingRecordRepository,
+                processingCheckpointRepository,
                 destinationCommitRepository,
                 clock);
     }

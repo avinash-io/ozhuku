@@ -1,20 +1,23 @@
 package io.github.avinashio.ozhuku.application.execution;
 
 import io.github.avinashio.ozhuku.application.deduplication.ExecutionDeduplicationService;
+import io.github.avinashio.ozhuku.application.orchestration.ExecutionOrchestrationService;
 import io.github.avinashio.ozhuku.application.processing.ExecutionProcessingService;
 import io.github.avinashio.ozhuku.application.processing.RecordProcessingRequest;
 import io.github.avinashio.ozhuku.application.processing.ResourceTransferRequest;
-import io.github.avinashio.ozhuku.application.orchestration.ExecutionOrchestrationService;
+import io.github.avinashio.ozhuku.domain.checkpoint.ProcessingCheckpoint;
 import io.github.avinashio.ozhuku.domain.deduplication.DeduplicationDecision;
 import io.github.avinashio.ozhuku.domain.deduplication.ProcessingRecord;
 import io.github.avinashio.ozhuku.domain.execution.DestinationCommit;
 import io.github.avinashio.ozhuku.domain.execution.DestinationCommitReference;
 import io.github.avinashio.ozhuku.domain.execution.DestinationExecutionReference;
 import io.github.avinashio.ozhuku.domain.execution.ExecutionReference;
+import io.github.avinashio.ozhuku.domain.execution.SourceExecutionReference;
 import io.github.avinashio.ozhuku.domain.identity.ExecutionId;
 import io.github.avinashio.ozhuku.domain.identity.FlowId;
 import io.github.avinashio.ozhuku.domain.pipeline.PipelinePlan;
 import io.github.avinashio.ozhuku.persistence.DestinationCommitRepository;
+import io.github.avinashio.ozhuku.persistence.ProcessingCheckpointRepository;
 import io.github.avinashio.ozhuku.persistence.ProcessingRecordRepository;
 import java.io.IOException;
 import java.time.Clock;
@@ -28,6 +31,7 @@ public final class ExecutionProcessingCoordinator {
     private final ExecutionResourceValidator executionResourceValidator;
     private final ExecutionDeduplicationService executionDeduplicationService;
     private final ProcessingRecordRepository processingRecordRepository;
+    private final ProcessingCheckpointRepository processingCheckpointRepository;
     private final DestinationCommitRepository destinationCommitRepository;
     private final Clock clock;
 
@@ -37,6 +41,7 @@ public final class ExecutionProcessingCoordinator {
             final ExecutionResourceValidator executionResourceValidator,
             final ExecutionDeduplicationService executionDeduplicationService,
             final ProcessingRecordRepository processingRecordRepository,
+            final ProcessingCheckpointRepository processingCheckpointRepository,
             final DestinationCommitRepository destinationCommitRepository,
             final Clock clock) {
 
@@ -64,6 +69,11 @@ public final class ExecutionProcessingCoordinator {
                 Objects.requireNonNull(
                         processingRecordRepository,
                         "processingRecordRepository must not be null");
+
+        this.processingCheckpointRepository =
+                Objects.requireNonNull(
+                        processingCheckpointRepository,
+                        "processingCheckpointRepository must not be null");
 
         this.destinationCommitRepository =
                 Objects.requireNonNull(
@@ -233,13 +243,19 @@ public final class ExecutionProcessingCoordinator {
                         "Duplicate source detected for processing identity");
             }
 
-            executionProcessingService.processRecordProcessing(
-                    executionId,
-                    request);
+            final long lastRecordSequence =
+                    executionProcessingService.processRecordProcessing(
+                            executionId,
+                            request);
 
             saveDestinationCommit(
                     executionId,
                     request.destination().id());
+
+            saveProcessingCheckpoint(
+                    executionId,
+                    request.source().id(),
+                    lastRecordSequence);
 
             saveProcessedRecord(
                     deduplicationResult);
@@ -289,6 +305,31 @@ public final class ExecutionProcessingCoordinator {
 
         destinationCommitRepository.save(
                 destinationCommit);
+    }
+
+    private void saveProcessingCheckpoint(
+            final ExecutionId executionId,
+            final io.github.avinashio.ozhuku.domain.identity.ResourceId
+                    sourceResourceId,
+            final long lastRecordSequence) {
+
+        if (lastRecordSequence < 0) {
+            return;
+        }
+
+        final SourceExecutionReference sourceExecutionReference =
+                new SourceExecutionReference(
+                        executionId,
+                        sourceResourceId);
+
+        final ProcessingCheckpoint checkpoint =
+                new ProcessingCheckpoint(
+                        sourceExecutionReference,
+                        lastRecordSequence,
+                        Instant.now(clock));
+
+        processingCheckpointRepository.save(
+                checkpoint);
     }
 
     private void saveProcessedRecord(

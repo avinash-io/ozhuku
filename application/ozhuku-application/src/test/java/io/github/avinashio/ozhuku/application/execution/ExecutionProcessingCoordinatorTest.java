@@ -13,6 +13,7 @@ import io.github.avinashio.ozhuku.application.record.RecordProcessingService;
 import io.github.avinashio.ozhuku.application.source.SourceFingerprintService;
 import io.github.avinashio.ozhuku.application.source.SourceIdentityService;
 import io.github.avinashio.ozhuku.application.transfer.ResourceTransferService;
+import io.github.avinashio.ozhuku.domain.checkpoint.ProcessingCheckpoint;
 import io.github.avinashio.ozhuku.domain.deduplication.DeduplicationEvaluator;
 import io.github.avinashio.ozhuku.domain.deduplication.DuplicatePolicy;
 import io.github.avinashio.ozhuku.domain.deduplication.ProcessingRecord;
@@ -57,6 +58,7 @@ import io.github.avinashio.ozhuku.persistence.DestinationCommitRepository;
 import io.github.avinashio.ozhuku.persistence.DestinationExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.ExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.FlowExecutionRepository;
+import io.github.avinashio.ozhuku.persistence.ProcessingCheckpointRepository;
 import io.github.avinashio.ozhuku.persistence.ProcessingRecordRepository;
 import io.github.avinashio.ozhuku.persistence.SourceExecutionRepository;
 import io.github.avinashio.ozhuku.storage.StorageOutput;
@@ -107,6 +109,7 @@ class ExecutionProcessingCoordinatorTest {
     private FakeSourceExecutionRepository sourceExecutionRepository;
     private FakeDestinationExecutionRepository destinationExecutionRepository;
     private FakeDestinationCommitRepository destinationCommitRepository;
+    private FakeProcessingCheckpointRepository processingCheckpointRepository;
     private FakeProcessingRecordRepository processingRecordRepository;
 
     private ExecutionProcessingCoordinator service;
@@ -127,6 +130,9 @@ class ExecutionProcessingCoordinatorTest {
 
         destinationCommitRepository =
                 new FakeDestinationCommitRepository();
+
+        processingCheckpointRepository =
+                new FakeProcessingCheckpointRepository();
 
         processingRecordRepository =
                 new FakeProcessingRecordRepository();
@@ -252,6 +258,10 @@ class ExecutionProcessingCoordinatorTest {
         assertEquals(
                 1,
                 processingRecordRepository.size());
+
+        assertEquals(
+                0,
+                processingCheckpointRepository.size());
     }
 
     @Test
@@ -329,6 +339,32 @@ class ExecutionProcessingCoordinatorTest {
                         .status());
 
         assertDestinationCommitIsCommitted();
+
+        assertEquals(
+                1,
+                processingCheckpointRepository.size());
+
+        final ProcessingCheckpoint checkpoint =
+                processingCheckpointRepository
+                        .findBySourceExecution(
+                                new SourceExecutionReference(
+                                        EXECUTION_ID,
+                                        SOURCE_RESOURCE_ID))
+                        .orElseThrow();
+
+        assertEquals(
+                new SourceExecutionReference(
+                        EXECUTION_ID,
+                        SOURCE_RESOURCE_ID),
+                checkpoint.sourceExecutionReference());
+
+        assertEquals(
+                1L,
+                checkpoint.recordSequence());
+
+        assertEquals(
+                FIXED_TIME,
+                checkpoint.checkpointedAt());
 
         assertEquals(
                 1,
@@ -429,6 +465,10 @@ class ExecutionProcessingCoordinatorTest {
         assertEquals(
                 0,
                 processingRecordRepository.size());
+
+        assertEquals(
+                0,
+                processingCheckpointRepository.size());
     }
 
     @Test
@@ -511,6 +551,10 @@ class ExecutionProcessingCoordinatorTest {
         assertEquals(
                 0,
                 processingRecordRepository.size());
+
+        assertEquals(
+                0,
+                processingCheckpointRepository.size());
     }
 
     @Test
@@ -555,6 +599,10 @@ class ExecutionProcessingCoordinatorTest {
         assertEquals(
                 1,
                 processingRecordRepository.size());
+
+        assertEquals(
+                0,
+                processingCheckpointRepository.size());
     }
 
     @Test
@@ -599,6 +647,10 @@ class ExecutionProcessingCoordinatorTest {
         assertEquals(
                 1,
                 processingRecordRepository.size());
+
+        assertEquals(
+                0,
+                processingCheckpointRepository.size());
     }
 
     @Test
@@ -643,6 +695,10 @@ class ExecutionProcessingCoordinatorTest {
         assertEquals(
                 1,
                 processingRecordRepository.size());
+
+        assertEquals(
+                0,
+                processingCheckpointRepository.size());
     }
 
     @Test
@@ -694,6 +750,10 @@ class ExecutionProcessingCoordinatorTest {
         assertEquals(
                 1,
                 processingRecordRepository.size());
+
+        assertEquals(
+                0,
+                processingCheckpointRepository.size());
     }
 
     @Test
@@ -864,6 +924,7 @@ class ExecutionProcessingCoordinatorTest {
                 executionResourceValidator,
                 executionDeduplicationService,
                 processingRecordRepository,
+                processingCheckpointRepository,
                 destinationCommitRepository,
                 clock);
     }
@@ -904,6 +965,7 @@ class ExecutionProcessingCoordinatorTest {
                 executionResourceValidator,
                 executionDeduplicationService,
                 processingRecordRepository,
+                processingCheckpointRepository,
                 destinationCommitRepository,
                 clock);
     }
@@ -1264,6 +1326,34 @@ class ExecutionProcessingCoordinatorTest {
             commits.put(
                     destinationCommit.reference(),
                     destinationCommit);
+        }
+    }
+
+    private static final class FakeProcessingCheckpointRepository
+            implements ProcessingCheckpointRepository {
+
+        private final Map<SourceExecutionReference, ProcessingCheckpoint>
+                checkpoints = new HashMap<>();
+
+        @Override
+        public Optional<ProcessingCheckpoint> findBySourceExecution(
+                final SourceExecutionReference reference) {
+
+            return Optional.ofNullable(
+                    checkpoints.get(reference));
+        }
+
+        @Override
+        public void save(
+                final ProcessingCheckpoint checkpoint) {
+
+            checkpoints.put(
+                    checkpoint.sourceExecutionReference(),
+                    checkpoint);
+        }
+
+        private int size() {
+            return checkpoints.size();
         }
     }
 

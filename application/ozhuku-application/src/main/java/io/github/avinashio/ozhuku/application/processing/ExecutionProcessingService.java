@@ -43,7 +43,7 @@ public final class ExecutionProcessingService {
                 request.deliveryPolicy());
     }
 
-    public void processRecordProcessing(
+    public long processRecordProcessing(
             final ExecutionId executionId,
             final RecordProcessingRequest request)
             throws IOException {
@@ -56,7 +56,7 @@ public final class ExecutionProcessingService {
                 request,
                 "request must not be null");
 
-        recordProcessingService.process(
+        return recordProcessingService.process(
                 request.source(),
                 request.destination(),
                 request.deliveryPolicy(),
