@@ -1,3 +1,4 @@
+
 package io.github.avinashio.ozhuku.application.execution;
 
 import io.github.avinashio.ozhuku.application.deduplication.ExecutionDeduplicationService;
@@ -147,6 +148,11 @@ public final class ExecutionProcessingCoordinator {
                         "Duplicate source detected for processing identity");
             }
 
+            // Avinash: Persist uncertainty before the destination side effect.
+            saveDestinationCommitUnknown(
+                    executionId,
+                    request.destination().id());
+
             executionProcessingService.processResourceTransfer(
                     executionId,
                     request);
@@ -243,6 +249,11 @@ public final class ExecutionProcessingCoordinator {
                         "Duplicate source detected for processing identity");
             }
 
+            // Avinash: Persist uncertainty before the destination side effect.
+            saveDestinationCommitUnknown(
+                    executionId,
+                    request.destination().id());
+
             final long lastRecordSequence =
                     executionProcessingService.processRecordProcessing(
                             executionId,
@@ -282,6 +293,25 @@ public final class ExecutionProcessingCoordinator {
                     exception);
             throw exception;
         }
+    }
+
+    private void saveDestinationCommitUnknown(
+            final ExecutionId executionId,
+            final io.github.avinashio.ozhuku.domain.identity.ResourceId
+                    destinationResourceId) {
+
+        final DestinationExecutionReference destinationExecutionReference =
+                new DestinationExecutionReference(
+                        executionId,
+                        destinationResourceId);
+
+        final DestinationCommitReference destinationCommitReference =
+                new DestinationCommitReference(
+                        destinationExecutionReference);
+
+        destinationCommitRepository.save(
+                DestinationCommit.unknown(
+                        destinationCommitReference));
     }
 
     private void saveDestinationCommit(

@@ -372,6 +372,75 @@ class ExecutionProcessingCoordinatorTest {
     }
 
     @Test
+    void processRecordProcessingShouldFailWhenDestinationCommitPersistenceFails()
+            throws IOException {
+
+        createPendingExecution();
+
+        destinationCommitRepository.setFailWhenSavingCommitted(true);
+
+        final TestFormatWriter formatWriter =
+                new TestFormatWriter();
+
+        final RecordProcessingRequest request =
+                new RecordProcessingRequest(
+                        resource("source"),
+                        resource("destination"),
+                        deliveryPolicy(),
+                        new TestFormatReader(
+                                record(0, "first"),
+                                record(1, "second")),
+                        formatWriter);
+
+        final IllegalStateException actual =
+                assertThrows(
+                        IllegalStateException.class,
+                        () -> service.processRecordProcessing(
+                                createExecutionReference(),
+                                createPipelinePlan(
+                                        DuplicatePolicy.SKIP_IF_PROCESSED),
+                                request));
+
+        assertEquals(
+                "Simulated destination commit persistence failure",
+                actual.getMessage());
+
+        assertEquals(
+                List.of(
+                        record(0, "first"),
+                        record(1, "second")),
+                formatWriter.records());
+
+        assertEquals(
+                ExecutionStatus.FAILED,
+                executionRepository
+                        .findById(EXECUTION_ID)
+                        .orElseThrow()
+                        .status());
+
+        final DestinationCommitReference reference =
+                new DestinationCommitReference(
+                        new DestinationExecutionReference(
+                                EXECUTION_ID,
+                                DESTINATION_RESOURCE_ID));
+
+        assertEquals(
+                CommitStatus.UNKNOWN,
+                destinationCommitRepository
+                        .findById(reference)
+                        .orElseThrow()
+                        .status());
+
+        assertEquals(
+                0,
+                processingCheckpointRepository.size());
+
+        assertEquals(
+                0,
+                processingRecordRepository.size());
+    }
+
+    @Test
     void processResourceTransferShouldFailExecutionWhenProcessingFails()
             throws IOException {
 
@@ -1311,6 +1380,8 @@ class ExecutionProcessingCoordinatorTest {
         private final Map<DestinationCommitReference, DestinationCommit>
                 commits = new HashMap<>();
 
+        private boolean failWhenSavingCommitted;
+
         @Override
         public Optional<DestinationCommit> findById(
                 final DestinationCommitReference reference) {
@@ -1323,9 +1394,21 @@ class ExecutionProcessingCoordinatorTest {
         public void save(
                 final DestinationCommit destinationCommit) {
 
+            if (failWhenSavingCommitted
+                    && destinationCommit.status() == CommitStatus.COMMITTED) {
+                throw new IllegalStateException(
+                        "Simulated destination commit persistence failure");
+            }
+
             commits.put(
                     destinationCommit.reference(),
                     destinationCommit);
+        }
+
+        private void setFailWhenSavingCommitted(
+                final boolean failWhenSavingCommitted) {
+
+            this.failWhenSavingCommitted = failWhenSavingCommitted;
         }
     }
 
