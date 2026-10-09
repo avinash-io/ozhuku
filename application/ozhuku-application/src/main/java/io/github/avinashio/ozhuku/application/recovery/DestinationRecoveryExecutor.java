@@ -94,14 +94,20 @@ public final class DestinationRecoveryExecutor {
                         execution.reference().pipelineId(),
                         execution.reference().pipelineVersion());
 
+        final DestinationCommitReference
+                destinationCommitReference =
+                new DestinationCommitReference(reference);
+
+        // Avinash: Persist uncertainty before the destination side effect.
+        destinationCommitRepository.save(
+                DestinationCommit.unknown(
+                        destinationCommitReference));
+
         resourceTransferService.transfer(
                 pipelinePlan.source(),
                 pipelinePlan.destination(),
                 pipelinePlan.deliveryPolicy());
 
-        final DestinationCommitReference
-                destinationCommitReference =
-                new DestinationCommitReference(reference);
 
         final DestinationCommit committed =
                 DestinationCommit.committed(

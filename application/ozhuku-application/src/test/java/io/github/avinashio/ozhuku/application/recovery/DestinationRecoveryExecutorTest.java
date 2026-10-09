@@ -39,6 +39,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import io.github.avinashio.ozhuku.domain.deduplication.DuplicatePolicy;
 
@@ -98,6 +99,8 @@ class DestinationRecoveryExecutorTest {
 
         final AtomicInteger transferCount =
                 new AtomicInteger();
+        final AtomicReference<CommitStatus> statusAtTransfer =
+                new AtomicReference<>();
 
         final ResourceTransferService
                 resourceTransferService =
@@ -107,6 +110,13 @@ class DestinationRecoveryExecutorTest {
                                         "test".getBytes()),
                         (destination, content, conflictBehavior) -> {
                             transferCount.incrementAndGet();
+                            statusAtTransfer.set(
+                                    commitRepository
+                                            .findById(
+                                                    new DestinationCommitReference(
+                                                            reference))
+                                            .orElseThrow()
+                                            .status());
                             content.transferTo(
                                     java.io.OutputStream
                                             .nullOutputStream());
@@ -125,6 +135,9 @@ class DestinationRecoveryExecutorTest {
         assertEquals(
                 1,
                 transferCount.get());
+        assertEquals(
+                CommitStatus.UNKNOWN,
+                statusAtTransfer.get());
 
         final DestinationCommit committed =
                 commitRepository
@@ -350,11 +363,76 @@ class DestinationRecoveryExecutorTest {
                 () -> executor.execute(reference));
 
         assertEquals(
-                CommitStatus.NOT_COMMITTED,
+                CommitStatus.UNKNOWN,
                 commitRepository
                         .findById(
                                 new DestinationCommitReference(
                                         reference))
+                        .orElseThrow()
+                        .status());
+    }
+
+    @Test
+    void shouldNotTransferWhenPersistingUnknownStateFails()
+            throws IOException {
+
+        final DestinationExecutionReference reference =
+                destinationExecutionReference();
+
+        final InMemoryExecutionRepository executionRepository =
+                new InMemoryExecutionRepository();
+
+        final InMemoryDestinationExecutionRepository
+                destinationExecutionRepository =
+                new InMemoryDestinationExecutionRepository();
+
+        final InMemoryDestinationCommitRepository commitRepository =
+                new InMemoryDestinationCommitRepository();
+        commitRepository.save(
+                DestinationCommit.notCommitted(
+                        new DestinationCommitReference(reference)));
+        commitRepository.failWhenSavingUnknown = true;
+
+        saveExecution(executionRepository);
+        saveFailedDestinationExecution(
+                destinationExecutionRepository,
+                reference);
+
+        final InMemoryPipelineConfigurationRepository
+                configurationRepository =
+                new InMemoryPipelineConfigurationRepository();
+        configurationRepository.save(configuration());
+
+        final AtomicInteger transferCount = new AtomicInteger();
+
+        final ResourceTransferService resourceTransferService =
+                new ResourceTransferService(
+                        resource ->
+                                new java.io.ByteArrayInputStream(
+                                        "test".getBytes()),
+                        (destination, content, conflictBehavior) -> {
+                            transferCount.incrementAndGet();
+                            content.transferTo(
+                                    java.io.OutputStream.nullOutputStream());
+                        });
+
+        final DestinationRecoveryExecutor executor =
+                executor(
+                        destinationExecutionRepository,
+                        commitRepository,
+                        executionRepository,
+                        configurationRepository,
+                        resourceTransferService);
+
+        assertThrows(
+                IllegalStateException.class,
+                () -> executor.execute(reference));
+
+        assertEquals(0, transferCount.get());
+        assertEquals(
+                CommitStatus.NOT_COMMITTED,
+                commitRepository
+                        .findById(new DestinationCommitReference(reference))
                         .orElseThrow()
                         .status());
     }
@@ -605,6 +683,8 @@ class DestinationRecoveryExecutorTest {
                 commits =
                 new HashMap<>();
 
+        private boolean failWhenSavingUnknown;
+
         @Override
         public Optional<DestinationCommit> findById(
                 final DestinationCommitReference reference) {
@@ -616,6 +696,12 @@ class DestinationRecoveryExecutorTest {
         @Override
         public void save(
                 final DestinationCommit destinationCommit) {
+
+            if (failWhenSavingUnknown
+                    && destinationCommit.status() == CommitStatus.UNKNOWN) {
+                throw new IllegalStateException(
+                        "Simulated failure persisting unknown state");
+            }
 
             commits.put(
                     destinationCommit.reference(),
