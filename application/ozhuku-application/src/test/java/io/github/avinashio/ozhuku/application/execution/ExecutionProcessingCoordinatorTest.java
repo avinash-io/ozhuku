@@ -372,6 +372,53 @@ class ExecutionProcessingCoordinatorTest {
     }
 
     @Test
+    void processRecordProcessingShouldNotSaveCheckpointForEmptyInput()
+            throws IOException {
+
+        createPendingExecution();
+
+        final RecordProcessingRequest request =
+                new RecordProcessingRequest(
+                        resource("source"),
+                        resource("destination"),
+                        deliveryPolicy(),
+                        new TestFormatReader(),
+                        new TestFormatWriter());
+
+        service.processRecordProcessing(
+                createExecutionReference(),
+                createPipelinePlan(
+                        DuplicatePolicy.SKIP_IF_PROCESSED),
+                request);
+
+        assertEquals(
+                ExecutionStatus.COMPLETED,
+                executionRepository
+                        .findById(EXECUTION_ID)
+                        .orElseThrow()
+                        .status());
+
+        assertEquals(
+                CommitStatus.COMMITTED,
+                destinationCommitRepository
+                        .findById(
+                                new DestinationCommitReference(
+                                        new DestinationExecutionReference(
+                                                EXECUTION_ID,
+                                                DESTINATION_RESOURCE_ID)))
+                        .orElseThrow()
+                        .status());
+
+        assertEquals(
+                0,
+                processingCheckpointRepository.size());
+
+        assertEquals(
+                1,
+                processingRecordRepository.size());
+    }
+
+    @Test
     void processRecordProcessingShouldFailWhenDestinationCommitPersistenceFails()
             throws IOException {
 
@@ -884,6 +931,62 @@ class ExecutionProcessingCoordinatorTest {
                         .findById(
                                 EXECUTION_ID,
                                 DESTINATION_RESOURCE_ID)
+                        .orElseThrow()
+                        .status());
+    }
+
+    @Test
+    void processRecordProcessingShouldFailWhenCheckpointPersistenceFails()
+            throws IOException {
+
+        createPendingExecution();
+
+        processingCheckpointRepository.setFailWhenSaving(true);
+
+        final RecordProcessingRequest request =
+                new RecordProcessingRequest(
+                        resource("source"),
+                        resource("destination"),
+                        deliveryPolicy(),
+                        new TestFormatReader(
+                                record(0, "first"),
+                                record(1, "second")),
+                        new TestFormatWriter());
+
+        final IllegalStateException actual =
+                assertThrows(
+                        IllegalStateException.class,
+                        () -> service.processRecordProcessing(
+                                createExecutionReference(),
+                                createPipelinePlan(
+                                        DuplicatePolicy.SKIP_IF_PROCESSED),
+                                request));
+
+        assertEquals(
+                "Simulated checkpoint persistence failure",
+                actual.getMessage());
+
+        final DestinationCommitReference reference =
+                new DestinationCommitReference(
+                        new DestinationExecutionReference(
+                                EXECUTION_ID,
+                                DESTINATION_RESOURCE_ID));
+
+        assertEquals(
+                CommitStatus.COMMITTED,
+                destinationCommitRepository
+                        .findById(reference)
+                        .orElseThrow()
+                        .status());
+
+        assertEquals(
+                0,
+                processingCheckpointRepository.size());
+
+        assertEquals(
+                ExecutionStatus.FAILED,
+                executionRepository
+                        .findById(EXECUTION_ID)
                         .orElseThrow()
                         .status());
     }
@@ -1418,6 +1521,8 @@ class ExecutionProcessingCoordinatorTest {
         private final Map<SourceExecutionReference, ProcessingCheckpoint>
                 checkpoints = new HashMap<>();
 
+        private boolean failWhenSaving;
+
         @Override
         public Optional<ProcessingCheckpoint> findBySourceExecution(
                 final SourceExecutionReference reference) {
@@ -1430,9 +1535,20 @@ class ExecutionProcessingCoordinatorTest {
         public void save(
                 final ProcessingCheckpoint checkpoint) {
 
+            if (failWhenSaving) {
+                throw new IllegalStateException(
+                        "Simulated checkpoint persistence failure");
+            }
+
             checkpoints.put(
                     checkpoint.sourceExecutionReference(),
                     checkpoint);
+        }
+
+        private void setFailWhenSaving(
+                final boolean failWhenSaving) {
+
+            this.failWhenSaving = failWhenSaving;
         }
 
         private int size() {
@@ -1467,4 +1583,6 @@ class ExecutionProcessingCoordinatorTest {
             return records.size();
         }
     }
+
+
 }
