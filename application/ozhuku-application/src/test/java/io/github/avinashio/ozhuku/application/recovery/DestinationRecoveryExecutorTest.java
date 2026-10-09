@@ -855,6 +855,8 @@ class DestinationRecoveryExecutorTest {
 
         private boolean failWhenSavingUnknown;
 
+        private boolean failWhenSavingCommitted;
+
         @Override
         public Optional<DestinationCommit> findById(
                 final DestinationCommitReference reference) {
@@ -866,6 +868,12 @@ class DestinationRecoveryExecutorTest {
         @Override
         public void save(
                 final DestinationCommit destinationCommit) {
+
+            if (failWhenSavingCommitted
+                    && destinationCommit.status() == CommitStatus.COMMITTED) {
+                throw new IllegalStateException(
+                        "Simulated failure persisting committed state");
+            }
 
             if (failWhenSavingUnknown
                     && destinationCommit.status() == CommitStatus.UNKNOWN) {
@@ -920,5 +928,145 @@ class DestinationRecoveryExecutorTest {
                     + ":"
                     + pipelineVersion.value();
         }
+    }
+
+    @Test
+    void shouldNotTransferWhenDestinationInspectionFails()
+            throws IOException {
+
+        final DestinationExecutionReference reference =
+                destinationExecutionReference();
+
+        final InMemoryExecutionRepository executionRepository =
+                new InMemoryExecutionRepository();
+
+        final InMemoryDestinationExecutionRepository
+                destinationExecutionRepository =
+                new InMemoryDestinationExecutionRepository();
+
+        final InMemoryDestinationCommitRepository commitRepository =
+                new InMemoryDestinationCommitRepository();
+
+        saveExecution(executionRepository);
+        saveFailedDestinationExecution(
+                destinationExecutionRepository,
+                reference);
+
+        commitRepository.save(
+                DestinationCommit.unknown(
+                        new DestinationCommitReference(reference)));
+
+        final InMemoryPipelineConfigurationRepository
+                configurationRepository =
+                new InMemoryPipelineConfigurationRepository();
+
+        configurationRepository.save(configuration());
+
+        final AtomicInteger transferCount = new AtomicInteger();
+
+        final ResourceTransferService resourceTransferService =
+                new ResourceTransferService(
+                        resource ->
+                                new java.io.ByteArrayInputStream(
+                                        "test".getBytes()),
+                        (destination, content, conflictBehavior) -> {
+                            transferCount.incrementAndGet();
+                            content.transferTo(
+                                    java.io.OutputStream.nullOutputStream());
+                        });
+
+        final DestinationRecoveryExecutor executor =
+                executor(
+                        destinationExecutionRepository,
+                        commitRepository,
+                        executionRepository,
+                        configurationRepository,
+                        resourceTransferService,
+                        ignoredReference -> {
+                            throw new IllegalStateException(
+                                    "Simulated destination inspection failure");
+                        });
+
+        assertThrows(
+                IllegalStateException.class,
+                () -> executor.execute(reference));
+
+        assertEquals(0, transferCount.get());
+
+        assertEquals(
+                CommitStatus.UNKNOWN,
+                commitRepository
+                        .findById(new DestinationCommitReference(reference))
+                        .orElseThrow()
+                        .status());
+    }
+
+    @Test
+    void shouldKeepCommitUnknownWhenPersistingCommittedStateFails()
+            throws IOException {
+
+        final DestinationExecutionReference reference =
+                destinationExecutionReference();
+
+        final InMemoryExecutionRepository executionRepository =
+                new InMemoryExecutionRepository();
+
+        final InMemoryDestinationExecutionRepository
+                destinationExecutionRepository =
+                new InMemoryDestinationExecutionRepository();
+
+        final InMemoryDestinationCommitRepository commitRepository =
+                new InMemoryDestinationCommitRepository();
+
+        saveExecution(executionRepository);
+        saveFailedDestinationExecution(
+                destinationExecutionRepository,
+                reference);
+
+        commitRepository.save(
+                DestinationCommit.notCommitted(
+                        new DestinationCommitReference(reference)));
+
+        final InMemoryPipelineConfigurationRepository
+                configurationRepository =
+                new InMemoryPipelineConfigurationRepository();
+
+        configurationRepository.save(configuration());
+
+        final AtomicInteger transferCount = new AtomicInteger();
+
+        final ResourceTransferService resourceTransferService =
+                new ResourceTransferService(
+                        resource ->
+                                new java.io.ByteArrayInputStream(
+                                        "test".getBytes()),
+                        (destination, content, conflictBehavior) -> {
+                            transferCount.incrementAndGet();
+                            content.transferTo(
+                                    java.io.OutputStream.nullOutputStream());
+                        });
+        
+        commitRepository.failWhenSavingCommitted = true;
+
+        final DestinationRecoveryExecutor executor =
+                executor(
+                        destinationExecutionRepository,
+                        commitRepository,
+                        executionRepository,
+                        configurationRepository,
+                        resourceTransferService);
+
+        assertThrows(
+                IllegalStateException.class,
+                () -> executor.execute(reference));
+
+        assertEquals(1, transferCount.get());
+
+        assertEquals(
+                CommitStatus.UNKNOWN,
+                commitRepository
+                        .findById(new DestinationCommitReference(reference))
+                        .orElseThrow()
+                        .status());
     }
 }
