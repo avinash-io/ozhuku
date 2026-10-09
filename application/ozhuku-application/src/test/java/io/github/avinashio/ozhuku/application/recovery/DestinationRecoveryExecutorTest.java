@@ -307,6 +307,176 @@ class DestinationRecoveryExecutorTest {
     }
 
     @Test
+    void shouldNotTransferWhenUnknownOutcomeIsConfirmedCommitted()
+            throws IOException {
+
+        final DestinationExecutionReference reference =
+                destinationExecutionReference();
+
+        final InMemoryExecutionRepository executionRepository =
+                new InMemoryExecutionRepository();
+
+        final InMemoryDestinationExecutionRepository
+                destinationExecutionRepository =
+                new InMemoryDestinationExecutionRepository();
+
+        final InMemoryDestinationCommitRepository
+                commitRepository =
+                new InMemoryDestinationCommitRepository();
+
+        saveExecution(executionRepository);
+
+        saveFailedDestinationExecution(
+                destinationExecutionRepository,
+                reference);
+
+        commitRepository.save(
+                DestinationCommit.unknown(
+                        new DestinationCommitReference(reference)));
+
+        final InMemoryPipelineConfigurationRepository
+                configurationRepository =
+                new InMemoryPipelineConfigurationRepository();
+
+        configurationRepository.save(configuration());
+
+        final AtomicInteger transferCount =
+                new AtomicInteger();
+
+        final ResourceTransferService
+                resourceTransferService =
+                new ResourceTransferService(
+                        resource ->
+                                new java.io.ByteArrayInputStream(
+                                        "test".getBytes()),
+                        (destination, content, conflictBehavior) -> {
+                            transferCount.incrementAndGet();
+                            content.transferTo(
+                                    java.io.OutputStream
+                                            .nullOutputStream());
+                        });
+
+        final DestinationRecoveryExecutor executor =
+                executor(
+                        destinationExecutionRepository,
+                        commitRepository,
+                        executionRepository,
+                        configurationRepository,
+                        resourceTransferService,
+                        ignoredReference ->
+                                CommitStatus.COMMITTED);
+
+        executor.execute(reference);
+
+        assertEquals(
+                0,
+                transferCount.get());
+
+        assertEquals(
+                CommitStatus.UNKNOWN,
+                commitRepository
+                        .findById(
+                                new DestinationCommitReference(
+                                        reference))
+                        .orElseThrow()
+                        .status());
+    }
+
+    @Test
+    void shouldRetryWhenUnknownOutcomeIsConfirmedNotCommitted()
+            throws IOException {
+
+        final DestinationExecutionReference reference =
+                destinationExecutionReference();
+
+        final InMemoryExecutionRepository executionRepository =
+                new InMemoryExecutionRepository();
+
+        final InMemoryDestinationExecutionRepository
+                destinationExecutionRepository =
+                new InMemoryDestinationExecutionRepository();
+
+        final InMemoryDestinationCommitRepository
+                commitRepository =
+                new InMemoryDestinationCommitRepository();
+
+        saveExecution(executionRepository);
+
+        saveFailedDestinationExecution(
+                destinationExecutionRepository,
+                reference);
+
+        commitRepository.save(
+                DestinationCommit.unknown(
+                        new DestinationCommitReference(reference)));
+
+        final InMemoryPipelineConfigurationRepository
+                configurationRepository =
+                new InMemoryPipelineConfigurationRepository();
+
+        configurationRepository.save(configuration());
+
+        final AtomicInteger transferCount =
+                new AtomicInteger();
+        final AtomicReference<CommitStatus> statusAtTransfer =
+                new AtomicReference<>();
+
+        final ResourceTransferService
+                resourceTransferService =
+                new ResourceTransferService(
+                        resource ->
+                                new java.io.ByteArrayInputStream(
+                                        "test".getBytes()),
+                        (destination, content, conflictBehavior) -> {
+                            transferCount.incrementAndGet();
+                            statusAtTransfer.set(
+                                    commitRepository
+                                            .findById(
+                                                    new DestinationCommitReference(
+                                                            reference))
+                                            .orElseThrow()
+                                            .status());
+                            content.transferTo(
+                                    java.io.OutputStream
+                                            .nullOutputStream());
+                        });
+
+        final DestinationRecoveryExecutor executor =
+                executor(
+                        destinationExecutionRepository,
+                        commitRepository,
+                        executionRepository,
+                        configurationRepository,
+                        resourceTransferService,
+                        ignoredReference ->
+                                CommitStatus.NOT_COMMITTED);
+
+        executor.execute(reference);
+
+        assertEquals(
+                1,
+                transferCount.get());
+        assertEquals(
+                CommitStatus.UNKNOWN,
+                statusAtTransfer.get());
+
+        final DestinationCommit committed =
+                commitRepository
+                        .findById(
+                                new DestinationCommitReference(
+                                        reference))
+                        .orElseThrow();
+
+        assertEquals(
+                CommitStatus.COMMITTED,
+                committed.status());
+
+        assertEquals(
+                COMMITTED_AT,
+                committed.committedAt());
+    }
+
+    @Test
     void shouldNotPersistCommittedStateWhenTransferFails() {
 
         final DestinationExecutionReference reference =
