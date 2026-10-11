@@ -1,11 +1,12 @@
 # Ozhuku Project Status & Progress Tracker
 
 ## 1. Completed Tasks
+
 - Ozhuku architecture and the Master Development Prompt were finalised and frozen.
 - Java 17 minimum and Java 21 reference runtime were established.
 - The modular Maven monolith structure was established.
 - Streaming-first processing, bounded memory, and backpressure requirements were established.
-- The three flow modes RESOURCE_TRANSFER, RECORD_PROCESSING, and RESOURCE_PROCESSING were defined.
+- The three flow modes `RESOURCE_TRANSFER`, `RECORD_PROCESSING`, and `RESOURCE_PROCESSING` were defined.
 - Acquisition, storage, format, persistence, security, and notification boundaries were defined.
 - PostgreSQL was established as the V1 control-plane database.
 - Windows/Linux filesystem handling and safe path resolution were implemented.
@@ -13,13 +14,13 @@
 - CSV reader and writer functionality was implemented and tested.
 - Pipeline configuration persistence and resolution were implemented.
 - Execution initialization, hierarchy, and lifecycle persistence were implemented.
-- Source and destination execution lifecycle handling was implemented.
+- Source and destination execution lifecycle handling were implemented.
 - Resource validation and resource-transfer processing were implemented.
 - Record processing with destination commit handling was implemented.
 - Source identity and fingerprint generation were implemented.
 - Deduplication models and policies were implemented.
-- SKIP_IF_PROCESSED was established as the default deduplication policy.
-- REPROCESS_IF_CHANGED and ALWAYS_PROCESS behaviour was tested.
+- `SKIP_IF_PROCESSED` was established as the default deduplication policy.
+- `REPROCESS_IF_CHANGED` and `ALWAYS_PROCESS` behaviour was tested.
 - Runtime source deduplication was integrated into execution processing.
 - Destination commit persistence and repository support were implemented.
 - Destination recovery policies and decision logic were implemented.
@@ -30,22 +31,31 @@
 - PostgreSQL checkpoint persistence, migration, and integration tests were implemented.
 - Checkpoint persistence was wired into runtime processing.
 - A regression test was added for destination-commit persistence failure.
-- All 10 ExecutionProcessingCoordinatorTest tests passed after the regression test was added.
-- Destination recovery was updated to persist UNKNOWN before starting a transfer.
-- The destination-commit failure fix preserves UNKNOWN when persisting COMMITTED fails.
-- The full .\mvnw.cmd clean verify build passed across all 12 modules with zero Checkstyle violations.
-- Commit 32e055b (Preserve unknown destination commit outcomes) was created.
-- The repository was confirmed clean and synchronised with origin/master.
+- All 10 `ExecutionProcessingCoordinatorTest` tests passed after the regression test was added.
+- Destination recovery was updated to persist `UNKNOWN` before starting a transfer.
+- The destination-commit failure fix preserves `UNKNOWN` when persisting `COMMITTED` fails.
+- PostgreSQL-backed destination recovery was tested using Testcontainers.
+- Testcontainers transitive dependencies were aligned to version `1.21.4` in the integration-test module.
+- Maven Failsafe `3.5.4` was configured to execute integration tests during verification.
+- All four integration-test classes were discovered and executed by Maven Failsafe.
+- All nine integration tests passed with zero failures, errors, or skipped tests.
+- The full Maven reactor verification succeeded across all 12 modules.
+- Checkstyle reported zero violations during the latest verification.
+- `git diff --check` passed during the dependency-alignment review.
+- Commit `e9cb463` aligned Testcontainers dependency versions and was pushed to `origin/master`.
+- Commit `e8f5b83` configured Maven Failsafe integration tests and was pushed to `origin/master`.
+- The repository was confirmed clean and synchronised with `origin/master` after the latest commit.
 
 ## 2. Pending Tasks
-- Implement destination-outcome reconciliation when the persisted commit status is UNKNOWN.
-- Inspect StorageOutput, FileStorageOutputProvider, and ResourceTransferService before designing reconciliation.
+
+- Implement destination-outcome reconciliation when the persisted commit status is `UNKNOWN`.
+- Inspect `StorageOutput`, `FileStorageOutputProvider`, and `ResourceTransferService` before designing reconciliation.
 - Complete checkpoint-based processing resumption after interrupted executions.
 - Complete execution lifecycle behaviour across all hierarchy levels.
 - Complete durable execution-state recovery and failure handling.
 - Complete idempotency across execution and destination boundaries.
 - Complete remaining persistence implementations and integration coverage.
-- Complete RESOURCE_PROCESSING flow support.
+- Complete `RESOURCE_PROCESSING` flow support.
 - Implement remaining format adapters beyond CSV.
 - Implement additional storage adapters, including S3.
 - Complete acquisition pull and push implementations.

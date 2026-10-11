@@ -1,6 +1,8 @@
+
 package io.github.avinashio.ozhuku.application.transfer;
 
 import io.github.avinashio.ozhuku.domain.delivery.DeliveryPolicy;
+import io.github.avinashio.ozhuku.domain.execution.DestinationCommitReference;
 import io.github.avinashio.ozhuku.domain.resource.Resource;
 import io.github.avinashio.ozhuku.storage.StorageReader;
 import io.github.avinashio.ozhuku.storage.StorageWriter;
@@ -32,6 +34,30 @@ public final class ResourceTransferService {
             final DeliveryPolicy deliveryPolicy)
             throws IOException {
 
+        transferInternal(source, destination, deliveryPolicy, null);
+    }
+
+    public void transfer(
+            final Resource source,
+            final Resource destination,
+            final DeliveryPolicy deliveryPolicy,
+            final DestinationCommitReference reference)
+            throws IOException {
+
+        Objects.requireNonNull(
+                reference,
+                "reference must not be null");
+
+        transferInternal(source, destination, deliveryPolicy, reference);
+    }
+
+    private void transferInternal(
+            final Resource source,
+            final Resource destination,
+            final DeliveryPolicy deliveryPolicy,
+            final DestinationCommitReference reference)
+            throws IOException {
+
         Objects.requireNonNull(
                 source,
                 "source must not be null");
@@ -44,13 +70,19 @@ public final class ResourceTransferService {
                 deliveryPolicy,
                 "deliveryPolicy must not be null");
 
-        try (InputStream input =
-                     storageReader.open(source)) {
-
-            storageWriter.write(
-                    destination,
-                    input,
-                    deliveryPolicy.conflictBehavior());
+        try (InputStream input = storageReader.open(source)) {
+            if (reference == null) {
+                storageWriter.write(
+                        destination,
+                        input,
+                        deliveryPolicy.conflictBehavior());
+            } else {
+                storageWriter.write(
+                        destination,
+                        input,
+                        deliveryPolicy.conflictBehavior(),
+                        reference);
+            }
         }
     }
 }

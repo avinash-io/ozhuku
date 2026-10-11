@@ -16,6 +16,10 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import io.github.avinashio.ozhuku.domain.execution.DestinationCommitReference;
+import io.github.avinashio.ozhuku.domain.execution.DestinationExecutionReference;
+import io.github.avinashio.ozhuku.domain.identity.ExecutionId;
+import io.github.avinashio.ozhuku.storage.DestinationWriteEvidenceStore;
 
 class FileStorageWriterTest {
 
@@ -493,5 +497,74 @@ class FileStorageWriterTest {
                 "original-content".getBytes(),
                 Files.readAllBytes(destination));
     }
+
+
+    @Test
+    void shouldPreservePublishedDestinationWhenEvidenceRecordingFails()
+            throws IOException {
+
+        final Path root =
+                temporaryDirectory.resolve("storage");
+
+        Files.createDirectories(root);
+
+        final Path destination =
+                root.resolve("output.txt");
+
+        final FileStoragePathResolver pathResolver =
+                new FileStoragePathResolver(root);
+
+        final DestinationWriteEvidenceStore failingEvidenceStore =
+                new DestinationWriteEvidenceStore() {
+                    @Override
+                    public void recordCommitted(
+                            final DestinationCommitReference reference)
+                            throws IOException {
+                        throw new IOException(
+                                "Simulated evidence recording failure");
+                    }
+
+                    @Override
+                    public io.github.avinashio.ozhuku.domain.execution.CommitStatus
+                    inspect(
+                            final DestinationCommitReference reference) {
+                        return io.github.avinashio.ozhuku.domain.execution.CommitStatus.UNKNOWN;
+                    }
+                };
+
+        final FileStorageWriter writer =
+                new FileStorageWriter(
+                        pathResolver,
+                        failingEvidenceStore);
+
+        final Resource resource =
+                new Resource(
+                        new ResourceId("destination-1"),
+                        new ResourceLocation(destination.toUri().toString()));
+
+        final DestinationCommitReference reference =
+                new DestinationCommitReference(
+                        new DestinationExecutionReference(
+                                new ExecutionId("execution-evidence-failure"),
+                                new ResourceId("destination-1")));
+
+        final byte[] expected =
+                "published-content".getBytes(
+                        java.nio.charset.StandardCharsets.UTF_8);
+
+        try (InputStream content = new ByteArrayInputStream(expected)) {
+            assertThrows(
+                    IOException.class,
+                    () -> writer.write(
+                            resource,
+                            content,
+                            ConflictBehavior.REPLACE,
+                            reference));
+        }
+
+        assertTrue(Files.exists(destination));
+        assertArrayEquals(expected, Files.readAllBytes(destination));
+    }
+
 }
 

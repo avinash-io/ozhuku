@@ -1,7 +1,10 @@
+
 package io.github.avinashio.ozhuku.application.processing;
 
 import io.github.avinashio.ozhuku.application.record.RecordProcessingService;
 import io.github.avinashio.ozhuku.application.transfer.ResourceTransferService;
+import io.github.avinashio.ozhuku.domain.execution.DestinationCommitReference;
+import io.github.avinashio.ozhuku.domain.execution.DestinationExecutionReference;
 import io.github.avinashio.ozhuku.domain.identity.ExecutionId;
 import java.io.IOException;
 import java.util.Objects;
@@ -32,15 +35,16 @@ public final class ExecutionProcessingService {
         Objects.requireNonNull(
                 executionId,
                 "executionId must not be null");
+        Objects.requireNonNull(request, "request must not be null");
 
-        Objects.requireNonNull(
-                request,
-                "request must not be null");
+        final DestinationCommitReference reference =
+                createReference(executionId, request.destination().id());
 
         resourceTransferService.transfer(
                 request.source(),
                 request.destination(),
-                request.deliveryPolicy());
+                request.deliveryPolicy(),
+                reference);
     }
 
     public long processRecordProcessing(
@@ -51,16 +55,28 @@ public final class ExecutionProcessingService {
         Objects.requireNonNull(
                 executionId,
                 "executionId must not be null");
+        Objects.requireNonNull(request, "request must not be null");
 
-        Objects.requireNonNull(
-                request,
-                "request must not be null");
+        final DestinationCommitReference reference =
+                createReference(executionId, request.destination().id());
 
         return recordProcessingService.process(
                 request.source(),
                 request.destination(),
                 request.deliveryPolicy(),
                 request.formatReader(),
-                request.formatWriter());
+                request.formatWriter(),
+                reference);
+    }
+
+    private DestinationCommitReference createReference(
+            final ExecutionId executionId,
+            final io.github.avinashio.ozhuku.domain.identity.ResourceId
+                    destinationResourceId) {
+
+        return new DestinationCommitReference(
+                new DestinationExecutionReference(
+                        executionId,
+                        destinationResourceId));
     }
 }

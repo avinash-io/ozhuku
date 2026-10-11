@@ -1,3 +1,4 @@
+
 package io.github.avinashio.ozhuku.server.config;
 
 import io.github.avinashio.ozhuku.application.deduplication.DeduplicationService;
@@ -22,7 +23,7 @@ import io.github.avinashio.ozhuku.application.recovery.DestinationRecoveryDecide
 import io.github.avinashio.ozhuku.application.recovery.DestinationRecoveryExecutor;
 import io.github.avinashio.ozhuku.application.recovery.DestinationRecoveryService;
 import io.github.avinashio.ozhuku.application.recovery.DestinationRecoveryUseCase;
-import io.github.avinashio.ozhuku.application.recovery.PersistenceDestinationOutcomeInspector;
+import io.github.avinashio.ozhuku.application.recovery.StorageDestinationOutcomeInspector;
 import io.github.avinashio.ozhuku.application.source.SourceFingerprintService;
 import io.github.avinashio.ozhuku.application.source.SourceIdentityService;
 import io.github.avinashio.ozhuku.application.transfer.ResourceTransferService;
@@ -49,9 +50,11 @@ import io.github.avinashio.ozhuku.persistence.postgres.PostgresPipelineConfigura
 import io.github.avinashio.ozhuku.persistence.postgres.PostgresProcessingCheckpointRepository;
 import io.github.avinashio.ozhuku.persistence.postgres.PostgresProcessingRecordRepository;
 import io.github.avinashio.ozhuku.persistence.postgres.PostgresSourceExecutionRepository;
+import io.github.avinashio.ozhuku.storage.DestinationWriteEvidenceStore;
 import io.github.avinashio.ozhuku.storage.StorageOutputProvider;
 import io.github.avinashio.ozhuku.storage.StorageReader;
 import io.github.avinashio.ozhuku.storage.StorageWriter;
+import io.github.avinashio.ozhuku.storage.file.FileDestinationWriteEvidenceStore;
 import io.github.avinashio.ozhuku.storage.file.FileSourceFingerprintProvider;
 import io.github.avinashio.ozhuku.storage.file.FileSourceIdentityProvider;
 import io.github.avinashio.ozhuku.storage.file.FileStorageOutputProvider;
@@ -80,6 +83,12 @@ public class RuntimeConfiguration {
     }
 
     @Bean
+    public DestinationWriteEvidenceStore destinationWriteEvidenceStore(
+            @Value("${ozhuku.storage.root}") final Path storageRoot) {
+        return new FileDestinationWriteEvidenceStore(storageRoot);
+    }
+
+    @Bean
     public StorageReader storageReader(
             final FileStoragePathResolver pathResolver) {
         return new FileStorageReader(pathResolver);
@@ -87,14 +96,16 @@ public class RuntimeConfiguration {
 
     @Bean
     public StorageWriter storageWriter(
-            final FileStoragePathResolver pathResolver) {
-        return new FileStorageWriter(pathResolver);
+            final FileStoragePathResolver pathResolver,
+            final DestinationWriteEvidenceStore evidenceStore) {
+        return new FileStorageWriter(pathResolver, evidenceStore);
     }
 
     @Bean
     public StorageOutputProvider storageOutputProvider(
-            final FileStoragePathResolver pathResolver) {
-        return new FileStorageOutputProvider(pathResolver);
+            final FileStoragePathResolver pathResolver,
+            final DestinationWriteEvidenceStore evidenceStore) {
+        return new FileStorageOutputProvider(pathResolver, evidenceStore);
     }
 
     @Bean
@@ -221,8 +232,7 @@ public class RuntimeConfiguration {
             final SourceExecutionRepository sourceExecutionRepository,
             final DestinationExecutionRepository
                     destinationExecutionRepository,
-            final DestinationCommitRepository
-                    destinationCommitRepository) {
+            final DestinationCommitRepository destinationCommitRepository) {
         return new ExecutionInitializationService(
                 executionRepository,
                 flowExecutionRepository,
@@ -303,20 +313,13 @@ public class RuntimeConfiguration {
 
     @Bean
     public ExecutionProcessingCoordinator executionProcessingCoordinator(
-            final ExecutionOrchestrationService
-                    executionOrchestrationService,
-            final ExecutionProcessingService
-                    executionProcessingService,
-            final ExecutionResourceValidator
-                    executionResourceValidator,
-            final ExecutionDeduplicationService
-                    executionDeduplicationService,
-            final ProcessingRecordRepository
-                    processingRecordRepository,
-            final ProcessingCheckpointRepository
-                    processingCheckpointRepository,
-            final DestinationCommitRepository
-                    destinationCommitRepository,
+            final ExecutionOrchestrationService executionOrchestrationService,
+            final ExecutionProcessingService executionProcessingService,
+            final ExecutionResourceValidator executionResourceValidator,
+            final ExecutionDeduplicationService executionDeduplicationService,
+            final ProcessingRecordRepository processingRecordRepository,
+            final ProcessingCheckpointRepository processingCheckpointRepository,
+            final DestinationCommitRepository destinationCommitRepository,
             final Clock clock) {
         return new ExecutionProcessingCoordinator(
                 executionOrchestrationService,
@@ -331,10 +334,8 @@ public class RuntimeConfiguration {
 
     @Bean
     public ExecutionRunService executionRunService(
-            final ExecutionInitializationService
-                    executionInitializationService,
-            final ExecutionProcessingCoordinator
-                    executionProcessingCoordinator) {
+            final ExecutionInitializationService executionInitializationService,
+            final ExecutionProcessingCoordinator executionProcessingCoordinator) {
         return new ExecutionRunService(
                 executionInitializationService,
                 executionProcessingCoordinator);
@@ -348,8 +349,7 @@ public class RuntimeConfiguration {
     }
 
     @Bean
-    public PipelineConfigurationRepository
-    pipelineConfigurationRepository(
+    public PipelineConfigurationRepository pipelineConfigurationRepository(
             final DataSource dataSource) {
         return new PostgresPipelineConfigurationRepository(dataSource);
     }
@@ -375,8 +375,7 @@ public class RuntimeConfiguration {
     configuredPipelineExecutionService(
             final PipelineConfigurationResolutionService
                     configurationResolutionService,
-            final PipelineExecutionService
-                    pipelineExecutionService) {
+            final PipelineExecutionService pipelineExecutionService) {
         return new ConfiguredPipelineExecutionService(
                 configurationResolutionService,
                 pipelineExecutionService);
@@ -389,30 +388,22 @@ public class RuntimeConfiguration {
     }
 
     @Bean
-    public PersistenceDestinationOutcomeInspector
-    destinationOutcomeInspector(
-            final DestinationCommitRepository
-                    destinationCommitRepository) {
-        return new PersistenceDestinationOutcomeInspector(
-                destinationCommitRepository);
+    public StorageDestinationOutcomeInspector destinationOutcomeInspector(
+            final DestinationWriteEvidenceStore evidenceStore) {
+        return new StorageDestinationOutcomeInspector(evidenceStore);
     }
 
     @Bean
     public DestinationRecoveryDecider destinationRecoveryDecider(
-            final PersistenceDestinationOutcomeInspector
-                    outcomeInspector) {
-        return new DestinationRecoveryDecider(
-                outcomeInspector);
+            final StorageDestinationOutcomeInspector outcomeInspector) {
+        return new DestinationRecoveryDecider(outcomeInspector);
     }
 
     @Bean
     public DestinationRecoveryService destinationRecoveryService(
-            final DestinationExecutionRepository
-                    destinationExecutionRepository,
-            final DestinationCommitRepository
-                    destinationCommitRepository,
-            final DestinationExecutionRecoveryPolicy
-                    executionRecoveryPolicy,
+            final DestinationExecutionRepository destinationExecutionRepository,
+            final DestinationCommitRepository destinationCommitRepository,
+            final DestinationExecutionRecoveryPolicy executionRecoveryPolicy,
             final DestinationRecoveryDecider recoveryDecider) {
         return new DestinationRecoveryService(
                 destinationExecutionRepository,
@@ -423,22 +414,19 @@ public class RuntimeConfiguration {
 
     @Bean
     public DestinationRecoveryUseCase destinationRecoveryUseCase(
-            final DestinationRecoveryService
-                    recoveryDecisionProvider) {
+            final DestinationRecoveryService recoveryDecisionProvider) {
         return new DestinationRecoveryUseCase(
                 recoveryDecisionProvider);
     }
 
     @Bean
     public DestinationRecoveryExecutor destinationRecoveryExecutor(
-            final DestinationRecoveryService
-                    destinationRecoveryService,
+            final DestinationRecoveryService destinationRecoveryService,
             final ExecutionRepository executionRepository,
             final PipelineConfigurationResolutionService
                     pipelineConfigurationResolutionService,
             final ResourceTransferService resourceTransferService,
-            final DestinationCommitRepository
-                    destinationCommitRepository,
+            final DestinationCommitRepository destinationCommitRepository,
             final Clock clock) {
         return new DestinationRecoveryExecutor(
                 destinationRecoveryService,

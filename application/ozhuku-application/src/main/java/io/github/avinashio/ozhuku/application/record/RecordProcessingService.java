@@ -1,6 +1,8 @@
+
 package io.github.avinashio.ozhuku.application.record;
 
 import io.github.avinashio.ozhuku.domain.delivery.DeliveryPolicy;
+import io.github.avinashio.ozhuku.domain.execution.DestinationCommitReference;
 import io.github.avinashio.ozhuku.domain.record.Record;
 import io.github.avinashio.ozhuku.domain.resource.Resource;
 import io.github.avinashio.ozhuku.format.FormatReadResult;
@@ -36,12 +38,48 @@ public final class RecordProcessingService {
             final FormatReader formatReader,
             final FormatWriter formatWriter)
             throws IOException {
-        Objects.requireNonNull(
+        return processInternal(
                 source,
-                "source must not be null");
-        Objects.requireNonNull(
                 destination,
-                "destination must not be null");
+                deliveryPolicy,
+                formatReader,
+                formatWriter,
+                null);
+    }
+
+    public long process(
+            final Resource source,
+            final Resource destination,
+            final DeliveryPolicy deliveryPolicy,
+            final FormatReader formatReader,
+            final FormatWriter formatWriter,
+            final DestinationCommitReference reference)
+            throws IOException {
+        Objects.requireNonNull(
+                reference,
+                "reference must not be null");
+
+        return processInternal(
+                source,
+                destination,
+                deliveryPolicy,
+                formatReader,
+                formatWriter,
+                reference);
+    }
+
+
+    private long processInternal(
+            final Resource source,
+            final Resource destination,
+            final DeliveryPolicy deliveryPolicy,
+            final FormatReader formatReader,
+            final FormatWriter formatWriter,
+            final DestinationCommitReference reference)
+            throws IOException {
+
+        Objects.requireNonNull(source, "source must not be null");
+        Objects.requireNonNull(destination, "destination must not be null");
         Objects.requireNonNull(
                 deliveryPolicy,
                 "deliveryPolicy must not be null");
@@ -53,10 +91,14 @@ public final class RecordProcessingService {
                 "formatWriter must not be null");
 
         try (InputStream input = storageReader.open(source);
-             StorageOutput output =
-                     storageOutputProvider.open(
-                             destination,
-                             deliveryPolicy)) {
+             StorageOutput output = reference == null
+                     ? storageOutputProvider.open(
+                     destination,
+                     deliveryPolicy)
+                     : storageOutputProvider.open(
+                     destination,
+                     deliveryPolicy,
+                     reference)) {
 
             formatReader.open(input);
             formatWriter.open(output.stream());
@@ -76,6 +118,7 @@ public final class RecordProcessingService {
             return lastRecordSequence;
         }
     }
+
 
     private long readAndWrite(
             final FormatReader formatReader,

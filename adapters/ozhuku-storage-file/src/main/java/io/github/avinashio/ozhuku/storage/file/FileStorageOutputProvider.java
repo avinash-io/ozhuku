@@ -1,8 +1,11 @@
+
 package io.github.avinashio.ozhuku.storage.file;
 
 import io.github.avinashio.ozhuku.domain.delivery.ConflictBehavior;
 import io.github.avinashio.ozhuku.domain.delivery.DeliveryPolicy;
+import io.github.avinashio.ozhuku.domain.execution.DestinationCommitReference;
 import io.github.avinashio.ozhuku.domain.resource.Resource;
+import io.github.avinashio.ozhuku.storage.DestinationWriteEvidenceStore;
 import io.github.avinashio.ozhuku.storage.StorageOutput;
 import io.github.avinashio.ozhuku.storage.StorageOutputProvider;
 import java.io.IOException;
@@ -13,15 +16,24 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.Objects;
 
-public final class FileStorageOutputProvider implements StorageOutputProvider {
+public final class FileStorageOutputProvider
+        implements StorageOutputProvider {
 
     private final FileStoragePathResolver pathResolver;
+    private final DestinationWriteEvidenceStore evidenceStore;
 
     public FileStorageOutputProvider(
             final FileStoragePathResolver pathResolver) {
+        this(pathResolver, null);
+    }
+
+    public FileStorageOutputProvider(
+            final FileStoragePathResolver pathResolver,
+            final DestinationWriteEvidenceStore evidenceStore) {
         this.pathResolver = Objects.requireNonNull(
                 pathResolver,
                 "pathResolver must not be null");
+        this.evidenceStore = evidenceStore;
     }
 
     @Override
@@ -29,6 +41,33 @@ public final class FileStorageOutputProvider implements StorageOutputProvider {
             final Resource destination,
             final DeliveryPolicy deliveryPolicy)
             throws IOException {
+        return openInternal(destination, deliveryPolicy, null);
+    }
+
+    @Override
+    public StorageOutput open(
+            final Resource destination,
+            final DeliveryPolicy deliveryPolicy,
+            final DestinationCommitReference reference)
+            throws IOException {
+        Objects.requireNonNull(
+                reference,
+                "reference must not be null");
+
+        if (evidenceStore == null) {
+            throw new IllegalStateException(
+                    "Destination write evidence store is not configured");
+        }
+
+        return openInternal(destination, deliveryPolicy, reference);
+    }
+
+    private StorageOutput openInternal(
+            final Resource destination,
+            final DeliveryPolicy deliveryPolicy,
+            final DestinationCommitReference reference)
+            throws IOException {
+
         Objects.requireNonNull(
                 destination,
                 "destination must not be null");
@@ -64,9 +103,12 @@ public final class FileStorageOutputProvider implements StorageOutputProvider {
 
         final Path parent = target.getParent();
 
-        if (parent != null) {
-            Files.createDirectories(parent);
+        if (parent == null) {
+            throw new IOException(
+                    "Destination parent directory is missing");
         }
+
+        Files.createDirectories(parent);
 
         final Path temporaryFile = Files.createTempFile(
                 parent,
@@ -81,7 +123,9 @@ public final class FileStorageOutputProvider implements StorageOutputProvider {
             return new AtomicFileStorageOutput(
                     target,
                     temporaryFile,
-                    outputStream);
+                    outputStream,
+                    evidenceStore,
+                    reference);
         } catch (IOException exception) {
             Files.deleteIfExists(temporaryFile);
             throw exception;
@@ -94,6 +138,8 @@ public final class FileStorageOutputProvider implements StorageOutputProvider {
         private final Path target;
         private final Path temporaryFile;
         private final OutputStream outputStream;
+        private final DestinationWriteEvidenceStore evidenceStore;
+        private final DestinationCommitReference reference;
 
         private boolean closed;
         private boolean committed;
@@ -101,16 +147,19 @@ public final class FileStorageOutputProvider implements StorageOutputProvider {
         private AtomicFileStorageOutput(
                 final Path target,
                 final Path temporaryFile,
-                final OutputStream outputStream) {
+                final OutputStream outputStream,
+                final DestinationWriteEvidenceStore evidenceStore,
+                final DestinationCommitReference reference) {
             this.target = target;
             this.temporaryFile = temporaryFile;
             this.outputStream = outputStream;
+            this.evidenceStore = evidenceStore;
+            this.reference = reference;
         }
 
         @Override
         public OutputStream stream() {
             ensureOpen();
-
             return outputStream;
         }
 
@@ -150,6 +199,10 @@ public final class FileStorageOutputProvider implements StorageOutputProvider {
 
             if (failure != null) {
                 throw failure;
+            }
+
+            if (reference != null) {
+                evidenceStore.recordCommitted(reference);
             }
         }
 

@@ -1,7 +1,9 @@
 package io.github.avinashio.ozhuku.storage.file;
 
 import io.github.avinashio.ozhuku.domain.delivery.ConflictBehavior;
+import io.github.avinashio.ozhuku.domain.execution.DestinationCommitReference;
 import io.github.avinashio.ozhuku.domain.resource.Resource;
+import io.github.avinashio.ozhuku.storage.DestinationWriteEvidenceStore;
 import io.github.avinashio.ozhuku.storage.StorageWriter;
 import java.io.IOException;
 import java.io.InputStream;
@@ -21,12 +23,20 @@ public final class FileStorageWriter implements StorageWriter {
             ".tmp";
 
     private final FileStoragePathResolver pathResolver;
+    private final DestinationWriteEvidenceStore evidenceStore;
 
     public FileStorageWriter(
             final FileStoragePathResolver pathResolver) {
+        this(pathResolver, null);
+    }
+
+    public FileStorageWriter(
+            final FileStoragePathResolver pathResolver,
+            final DestinationWriteEvidenceStore evidenceStore) {
         this.pathResolver = Objects.requireNonNull(
                 pathResolver,
                 "pathResolver must not be null");
+        this.evidenceStore = evidenceStore;
     }
 
     @Override
@@ -35,22 +45,45 @@ public final class FileStorageWriter implements StorageWriter {
             final InputStream content,
             final ConflictBehavior conflictBehavior)
             throws IOException {
+        writeInternal(destination, content, conflictBehavior, null);
+    }
+
+    @Override
+    public void write(
+            final Resource destination,
+            final InputStream content,
+            final ConflictBehavior conflictBehavior,
+            final DestinationCommitReference reference)
+            throws IOException {
+        Objects.requireNonNull(reference, "reference must not be null");
+
+        if (evidenceStore == null) {
+            throw new IllegalStateException(
+                    "Destination write evidence store is not configured");
+        }
+
+        writeInternal(destination, content, conflictBehavior, reference);
+    }
+
+    private void writeInternal(
+            final Resource destination,
+            final InputStream content,
+            final ConflictBehavior conflictBehavior,
+            final DestinationCommitReference reference)
+            throws IOException {
 
         Objects.requireNonNull(
                 destination,
                 "destination must not be null");
-
         Objects.requireNonNull(
                 content,
                 "content must not be null");
-
         Objects.requireNonNull(
                 conflictBehavior,
                 "conflictBehavior must not be null");
 
         final Path destinationPath =
-                pathResolver.resolveForWrite(
-                        destination.location());
+                pathResolver.resolveForWrite(destination.location());
 
         switch (conflictBehavior) {
             case FAIL:
@@ -82,8 +115,7 @@ public final class FileStorageWriter implements StorageWriter {
                                 + conflictBehavior);
         }
 
-        final Path parent =
-                destinationPath.getParent();
+        final Path parent = destinationPath.getParent();
 
         if (parent == null) {
             throw new IOException(
@@ -92,18 +124,16 @@ public final class FileStorageWriter implements StorageWriter {
 
         Files.createDirectories(parent);
 
-        final Path temporaryPath =
-                Files.createTempFile(
-                        parent,
-                        TEMPORARY_FILE_PREFIX,
-                        TEMPORARY_FILE_SUFFIX);
+        final Path temporaryPath = Files.createTempFile(
+                parent,
+                TEMPORARY_FILE_PREFIX,
+                TEMPORARY_FILE_SUFFIX);
 
         boolean moved = false;
 
         try {
             try (OutputStream output =
                          Files.newOutputStream(temporaryPath)) {
-
                 content.transferTo(output);
             }
 
@@ -113,13 +143,16 @@ public final class FileStorageWriter implements StorageWriter {
                         destinationPath,
                         StandardCopyOption.ATOMIC_MOVE,
                         StandardCopyOption.REPLACE_EXISTING);
-
                 moved = true;
             } catch (final AtomicMoveNotSupportedException exception) {
                 throw new IOException(
                         "Atomic move is not supported "
                                 + "by the destination filesystem",
                         exception);
+            }
+
+            if (reference != null) {
+                evidenceStore.recordCommitted(reference);
             }
         } finally {
             if (!moved) {
@@ -128,4 +161,3 @@ public final class FileStorageWriter implements StorageWriter {
         }
     }
 }
-

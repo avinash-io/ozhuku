@@ -1,3 +1,4 @@
+
 package io.github.avinashio.ozhuku.application.recovery;
 
 import io.github.avinashio.ozhuku.application.pipeline.PipelineConfigurationResolutionService;
@@ -7,9 +8,9 @@ import io.github.avinashio.ozhuku.domain.execution.DestinationCommitReference;
 import io.github.avinashio.ozhuku.domain.execution.DestinationExecutionReference;
 import io.github.avinashio.ozhuku.domain.execution.Execution;
 import io.github.avinashio.ozhuku.domain.pipeline.PipelinePlan;
+import io.github.avinashio.ozhuku.foundation.validation.Validation;
 import io.github.avinashio.ozhuku.persistence.DestinationCommitRepository;
 import io.github.avinashio.ozhuku.persistence.ExecutionRepository;
-import io.github.avinashio.ozhuku.foundation.validation.Validation;
 import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
@@ -73,8 +74,7 @@ public final class DestinationRecoveryExecutor {
         final RecoveryResult recoveryResult =
                 recoveryService.decide(reference);
 
-        if (recoveryResult.decision()
-                != RecoveryDecision.RETRY) {
+        if (recoveryResult.decision() != RecoveryDecision.RETRY) {
             return;
         }
 
@@ -82,32 +82,27 @@ public final class DestinationRecoveryExecutor {
                 executionRepository
                         .findById(reference.executionId())
                         .orElseThrow(
-                                () ->
-                                        new IllegalStateException(
-                                                "Execution does not exist: "
-                                                        + reference
-                                                        .executionId()
-                                                        .value()));
+                                () -> new IllegalStateException(
+                                        "Execution does not exist: "
+                                                + reference.executionId()
+                                                .value()));
 
         final PipelinePlan pipelinePlan =
                 configurationResolutionService.resolve(
                         execution.reference().pipelineId(),
                         execution.reference().pipelineVersion());
 
-        final DestinationCommitReference
-                destinationCommitReference =
+        final DestinationCommitReference destinationCommitReference =
                 new DestinationCommitReference(reference);
 
-        // Avinash: Persist uncertainty before the destination side effect.
         destinationCommitRepository.save(
-                DestinationCommit.unknown(
-                        destinationCommitReference));
+                DestinationCommit.unknown(destinationCommitReference));
 
         resourceTransferService.transfer(
                 pipelinePlan.source(),
                 pipelinePlan.destination(),
-                pipelinePlan.deliveryPolicy());
-
+                pipelinePlan.deliveryPolicy(),
+                destinationCommitReference);
 
         final DestinationCommit committed =
                 DestinationCommit.committed(
