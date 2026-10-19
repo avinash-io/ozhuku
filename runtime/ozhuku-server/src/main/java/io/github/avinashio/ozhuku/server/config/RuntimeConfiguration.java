@@ -10,6 +10,7 @@ import io.github.avinashio.ozhuku.application.execution.ExecutionResourceValidat
 import io.github.avinashio.ozhuku.application.execution.ExecutionRunService;
 import io.github.avinashio.ozhuku.application.execution.FlowExecutionLifecycleService;
 import io.github.avinashio.ozhuku.application.execution.PipelineExecutionService;
+import io.github.avinashio.ozhuku.application.execution.ResourceProcessingService;
 import io.github.avinashio.ozhuku.application.execution.SourceExecutionLifecycleService;
 import io.github.avinashio.ozhuku.application.initialization.ExecutionInitializationService;
 import io.github.avinashio.ozhuku.application.orchestration.ExecutionOrchestrationService;
@@ -278,6 +279,11 @@ public class RuntimeConfiguration {
         return new ExecutionProcessingService(
                 resourceTransferService,
                 recordProcessingService);
+    }
+
+    @Bean
+    public ResourceProcessingService resourceProcessingService() {
+        return new ResourceProcessingService();
     }
 
     @Bean

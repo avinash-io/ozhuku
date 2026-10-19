@@ -17,6 +17,8 @@ import io.github.avinashio.ozhuku.domain.execution.SourceExecutionReference;
 import io.github.avinashio.ozhuku.domain.identity.ExecutionId;
 import io.github.avinashio.ozhuku.domain.identity.FlowId;
 import io.github.avinashio.ozhuku.domain.pipeline.PipelinePlan;
+import io.github.avinashio.ozhuku.domain.execution.CommitStatus;
+import io.github.avinashio.ozhuku.domain.identity.ResourceId;
 import io.github.avinashio.ozhuku.persistence.DestinationCommitRepository;
 import io.github.avinashio.ozhuku.persistence.ProcessingCheckpointRepository;
 import io.github.avinashio.ozhuku.persistence.ProcessingRecordRepository;
@@ -92,6 +94,18 @@ public final class ExecutionProcessingCoordinator {
             final PipelinePlan pipelinePlan,
             final ResourceTransferRequest request)
             throws IOException {
+        // Idempotency: if a COMMITTED destination commit already exists, skip processing.
+        final ExecutionId execId = executionReference.executionId();
+        final ResourceId destResId = request.destination().id();
+        if (isDestinationAlreadyCommitted(execId, destResId)) {
+            // Mark execution as completed without performing transfer.
+            executionOrchestrationService.completeExecution(
+                    execId,
+                    pipelinePlan.flow().id(),
+                    request.source().id(),
+                    destResId);
+            return;
+        }
 
         Objects.requireNonNull(
                 executionReference,
@@ -186,6 +200,16 @@ public final class ExecutionProcessingCoordinator {
                     exception);
             throw exception;
         }
+    }
+
+    private boolean isDestinationAlreadyCommitted(final ExecutionId executionId, final ResourceId destinationResourceId) {
+        final DestinationExecutionReference destinationExecutionReference =
+                new DestinationExecutionReference(executionId, destinationResourceId);
+        final DestinationCommitReference destinationCommitReference =
+                new DestinationCommitReference(destinationExecutionReference);
+        return destinationCommitRepository.findById(destinationCommitReference)
+                .map(commit -> commit.status() == CommitStatus.COMMITTED)
+                .orElse(false);
     }
 
     public void processRecordProcessing(
