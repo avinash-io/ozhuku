@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import io.github.avinashio.ozhuku.domain.execution.DestinationExecution;
+import io.github.avinashio.ozhuku.domain.execution.DestinationExecutionStatus;
 import io.github.avinashio.ozhuku.domain.execution.DestinationExecutionReference;
 import io.github.avinashio.ozhuku.domain.execution.SourceExecution;
 import io.github.avinashio.ozhuku.domain.execution.SourceExecutionReference;
@@ -12,6 +13,7 @@ import io.github.avinashio.ozhuku.domain.identity.ResourceId;
 import io.github.avinashio.ozhuku.persistence.DestinationExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.SourceExecutionRepository;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -231,6 +233,15 @@ class ExecutionResourceValidatorTest {
                 final ResourceId resourceId) {
 
             return executionId + ":" + resourceId;
+        }
+
+        @Override
+        public List<DestinationExecution> findRecoverableExecutions() {
+            return executions.values().stream()
+                    .filter(e -> e.status() == DestinationExecutionStatus.PENDING
+                            || e.status() == DestinationExecutionStatus.RUNNING
+                            || e.status() == DestinationExecutionStatus.FAILED)
+                    .toList();
         }
     }
 }

@@ -36,6 +36,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -841,6 +842,15 @@ class DestinationRecoveryExecutorTest {
                     destinationExecution.reference(),
                     destinationExecution);
         }
+
+        @Override
+        public List<DestinationExecution> findRecoverableExecutions() {
+            return executions.values().stream()
+                    .filter(e -> e.status() == DestinationExecutionStatus.PENDING
+                            || e.status() == DestinationExecutionStatus.RUNNING
+                            || e.status() == DestinationExecutionStatus.FAILED)
+                    .toList();
+        }
     }
 
     private static final class
@@ -884,6 +894,14 @@ class DestinationRecoveryExecutorTest {
             commits.put(
                     destinationCommit.reference(),
                     destinationCommit);
+        }
+
+        @Override
+        public List<DestinationCommit> findByStatus(
+                final CommitStatus status) {
+            return commits.values().stream()
+                    .filter(c -> c.status() == status)
+                    .toList();
         }
     }
 

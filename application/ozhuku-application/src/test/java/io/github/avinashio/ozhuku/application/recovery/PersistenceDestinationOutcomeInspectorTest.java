@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import io.github.avinashio.ozhuku.domain.execution.CommitStatus;
 import io.github.avinashio.ozhuku.domain.execution.DestinationCommit;
+import java.util.List;
 import io.github.avinashio.ozhuku.domain.execution.DestinationCommitReference;
 import io.github.avinashio.ozhuku.domain.execution.DestinationExecutionReference;
 import io.github.avinashio.ozhuku.domain.identity.ExecutionId;
@@ -142,6 +143,14 @@ class PersistenceDestinationOutcomeInspectorTest {
             commits.put(
                     destinationCommit.reference(),
                     destinationCommit);
+        }
+
+        @Override
+        public List<DestinationCommit> findByStatus(
+                final CommitStatus status) {
+            return commits.values().stream()
+                    .filter(c -> c.status() == status)
+                    .toList();
         }
     }
 }

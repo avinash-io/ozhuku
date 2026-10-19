@@ -15,6 +15,7 @@ import io.github.avinashio.ozhuku.persistence.DestinationCommitRepository;
 import io.github.avinashio.ozhuku.persistence.DestinationExecutionRepository;
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -506,6 +507,15 @@ class DestinationRecoveryServiceTest {
                     destinationExecution.reference(),
                     destinationExecution);
         }
+
+        @Override
+        public List<DestinationExecution> findRecoverableExecutions() {
+            return executions.values().stream()
+                    .filter(e -> e.status() == DestinationExecutionStatus.PENDING
+                            || e.status() == DestinationExecutionStatus.RUNNING
+                            || e.status() == DestinationExecutionStatus.FAILED)
+                    .toList();
+        }
     }
 
     private static final class InMemoryDestinationCommitRepository
@@ -532,6 +542,14 @@ class DestinationRecoveryServiceTest {
             commits.put(
                     destinationCommit.reference(),
                     destinationCommit);
+        }
+
+        @Override
+        public List<DestinationCommit> findByStatus(
+                final CommitStatus status) {
+            return commits.values().stream()
+                    .filter(c -> c.status() == status)
+                    .toList();
         }
     }
 }

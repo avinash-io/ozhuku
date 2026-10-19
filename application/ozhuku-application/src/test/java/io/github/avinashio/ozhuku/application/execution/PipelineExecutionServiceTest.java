@@ -1,5 +1,7 @@
 package io.github.avinashio.ozhuku.application.execution;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -18,10 +20,13 @@ import io.github.avinashio.ozhuku.domain.deduplication.DuplicatePolicy;
 import io.github.avinashio.ozhuku.domain.deduplication.ProcessingRecord;
 import io.github.avinashio.ozhuku.domain.delivery.ConflictBehavior;
 import io.github.avinashio.ozhuku.domain.delivery.DeliveryPolicy;
-import io.github.avinashio.ozhuku.domain.execution.DestinationCommit;
-import io.github.avinashio.ozhuku.domain.execution.DestinationCommitReference;
 import io.github.avinashio.ozhuku.domain.execution.Execution;
 import io.github.avinashio.ozhuku.domain.execution.ExecutionReference;
+import io.github.avinashio.ozhuku.domain.execution.DestinationExecution;
+import io.github.avinashio.ozhuku.domain.execution.DestinationExecutionStatus;
+import io.github.avinashio.ozhuku.domain.execution.DestinationCommitReference;
+import io.github.avinashio.ozhuku.domain.execution.DestinationCommit;
+import io.github.avinashio.ozhuku.domain.execution.CommitStatus;
 import io.github.avinashio.ozhuku.domain.flow.Flow;
 import io.github.avinashio.ozhuku.domain.flow.FlowMode;
 import io.github.avinashio.ozhuku.domain.identity.ExecutionId;
@@ -47,12 +52,12 @@ import io.github.avinashio.ozhuku.persistence.ProcessingCheckpointRepository;
 import io.github.avinashio.ozhuku.persistence.ProcessingRecordRepository;
 import io.github.avinashio.ozhuku.persistence.SourceExecutionRepository;
 import io.github.avinashio.ozhuku.storage.StorageOutput;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.time.Clock;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -603,6 +608,17 @@ class PipelineExecutionServiceTest {
 
             this.destinationExecution = destinationExecution;
         }
+
+        @Override
+        public List<DestinationExecution> findRecoverableExecutions() {
+            if (destinationExecution != null
+                    && (destinationExecution.status() == DestinationExecutionStatus.PENDING
+                    || destinationExecution.status() == DestinationExecutionStatus.RUNNING
+                    || destinationExecution.status() == DestinationExecutionStatus.FAILED)) {
+                return List.of(destinationExecution);
+            }
+            return List.of();
+        }
     }
 
     private static final class InMemoryDestinationCommitRepository
@@ -625,6 +641,45 @@ class PipelineExecutionServiceTest {
             commits.put(
                     destinationCommit.reference(),
                     destinationCommit);
+        }
+
+        @Override
+        public List<DestinationCommit> findByStatus(
+                final CommitStatus status) {
+            return commits.values().stream()
+                    .filter(c -> c.status() == status)
+                    .toList();
+        }
+    }
+
+    private static final class InMemoryDestinationCommitRepository2
+            implements DestinationCommitRepository {
+
+        private final Map<DestinationCommitReference, DestinationCommit>
+                commits = new HashMap<>();
+
+        @Override
+        public Optional<DestinationCommit> findById(
+                final DestinationCommitReference reference) {
+
+            return Optional.ofNullable(commits.get(reference));
+        }
+
+        @Override
+        public void save(
+                final DestinationCommit destinationCommit) {
+
+            commits.put(
+                    destinationCommit.reference(),
+                    destinationCommit);
+        }
+
+        @Override
+        public List<DestinationCommit> findByStatus(
+                final CommitStatus status) {
+            return commits.values().stream()
+                    .filter(c -> c.status() == status)
+                    .toList();
         }
     }
 }

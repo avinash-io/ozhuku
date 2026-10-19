@@ -14,6 +14,8 @@ import java.sql.SQLException;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import javax.sql.DataSource;
@@ -44,6 +46,16 @@ public final class PostgresDestinationCommitRepository
             DO UPDATE SET
                 status = EXCLUDED.status,
                 committed_at = EXCLUDED.committed_at
+            """;
+
+    private static final String FIND_BY_STATUS_SQL = """
+            SELECT
+                execution_id,
+                resource_id,
+                status,
+                committed_at
+            FROM destination_commits
+            WHERE status = ?
             """;
 
     private final DataSource dataSource;
@@ -143,6 +155,33 @@ public final class PostgresDestinationCommitRepository
         } catch (SQLException exception) {
             throw new IllegalStateException(
                     "Failed to save destination commit",
+                    exception);
+        }
+    }
+
+    @Override
+    public List<DestinationCommit> findByStatus(
+            final CommitStatus status) {
+
+        Objects.requireNonNull(status, "status must not be null");
+
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement statement =
+                     connection.prepareStatement(FIND_BY_STATUS_SQL)) {
+
+            statement.setString(1, status.name());
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                final List<DestinationCommit> commits = new ArrayList<>();
+                while (resultSet.next()) {
+                    commits.add(mapDestinationCommit(resultSet));
+                }
+                return commits;
+            }
+        } catch (SQLException exception) {
+            throw new IllegalStateException(
+                    "Failed to find destination commits by status: "
+                            + status,
                     exception);
         }
     }

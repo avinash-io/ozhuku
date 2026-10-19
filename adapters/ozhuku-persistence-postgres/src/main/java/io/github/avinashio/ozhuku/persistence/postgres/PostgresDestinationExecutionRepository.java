@@ -13,6 +13,7 @@ import java.sql.SQLException;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import javax.sql.DataSource;
@@ -46,6 +47,17 @@ public final class PostgresDestinationExecutionRepository
                 status = EXCLUDED.status,
                 started_at = EXCLUDED.started_at,
                 completed_at = EXCLUDED.completed_at
+            """;
+
+    private static final String FIND_RECOVERABLE_SQL = """
+            SELECT
+                execution_id,
+                resource_id,
+                status,
+                started_at,
+                completed_at
+            FROM destination_executions
+            WHERE status IN ('PENDING', 'RUNNING', 'FAILED')
             """;
 
     private final DataSource dataSource;
@@ -130,6 +142,26 @@ public final class PostgresDestinationExecutionRepository
         } catch (SQLException exception) {
             throw new IllegalStateException(
                     "Failed to save destination execution",
+                    exception);
+        }
+    }
+
+    @Override
+    public List<DestinationExecution> findRecoverableExecutions() {
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement statement =
+                     connection.prepareStatement(FIND_RECOVERABLE_SQL)) {
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                var executions = new java.util.ArrayList<DestinationExecution>();
+                while (resultSet.next()) {
+                    executions.add(mapDestinationExecution(resultSet));
+                }
+                return executions;
+            }
+        } catch (SQLException exception) {
+            throw new IllegalStateException(
+                    "Failed to find recoverable executions",
                     exception);
         }
     }

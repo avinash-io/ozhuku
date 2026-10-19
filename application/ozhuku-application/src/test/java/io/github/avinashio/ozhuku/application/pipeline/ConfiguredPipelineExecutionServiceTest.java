@@ -19,14 +19,10 @@ import io.github.avinashio.ozhuku.domain.delivery.DeliveryPolicy;
 import io.github.avinashio.ozhuku.domain.deduplication.DeduplicationEvaluator;
 import io.github.avinashio.ozhuku.domain.deduplication.DuplicatePolicy;
 import io.github.avinashio.ozhuku.domain.deduplication.ProcessingRecord;
-import io.github.avinashio.ozhuku.domain.execution.DestinationCommit;
-import io.github.avinashio.ozhuku.domain.execution.DestinationCommitReference;
-import io.github.avinashio.ozhuku.domain.execution.DestinationExecution;
-import io.github.avinashio.ozhuku.domain.execution.Execution;
-import io.github.avinashio.ozhuku.domain.execution.ExecutionReference;
-import io.github.avinashio.ozhuku.domain.execution.ExecutionStatus;
-import io.github.avinashio.ozhuku.domain.execution.FlowExecution;
-import io.github.avinashio.ozhuku.domain.execution.SourceExecution;
+import io.github.avinashio.ozhuku.domain.execution.*;
+
+import java.util.List;
+
 import io.github.avinashio.ozhuku.domain.flow.Flow;
 import io.github.avinashio.ozhuku.domain.flow.FlowMode;
 import io.github.avinashio.ozhuku.domain.identity.ExecutionId;
@@ -50,11 +46,13 @@ import io.github.avinashio.ozhuku.persistence.ProcessingCheckpointRepository;
 import io.github.avinashio.ozhuku.persistence.ProcessingRecordRepository;
 import io.github.avinashio.ozhuku.persistence.SourceExecutionRepository;
 import io.github.avinashio.ozhuku.storage.StorageOutput;
+
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.time.Clock;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -605,6 +603,17 @@ class ConfiguredPipelineExecutionServiceTest {
 
             this.destinationExecution = destinationExecution;
         }
+
+        @Override
+        public List<DestinationExecution> findRecoverableExecutions() {
+            if (destinationExecution != null
+                    && (destinationExecution.status() == DestinationExecutionStatus.PENDING
+                    || destinationExecution.status() == DestinationExecutionStatus.RUNNING
+                    || destinationExecution.status() == DestinationExecutionStatus.FAILED)) {
+                return List.of(destinationExecution);
+            }
+            return List.of();
+        }
     }
 
     private static final class InMemoryProcessingRecordRepository
@@ -676,6 +685,14 @@ class ConfiguredPipelineExecutionServiceTest {
             commits.put(
                     destinationCommit.reference(),
                     destinationCommit);
+        }
+
+        @Override
+        public List<DestinationCommit> findByStatus(
+                final CommitStatus status) {
+            return commits.values().stream()
+                    .filter(c -> c.status() == status)
+                    .toList();
         }
     }
 }

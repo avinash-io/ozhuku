@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import io.github.avinashio.ozhuku.domain.execution.DestinationExecution;
 import io.github.avinashio.ozhuku.domain.execution.DestinationExecutionReference;
+import io.github.avinashio.ozhuku.domain.execution.CommitStatus;
 import io.github.avinashio.ozhuku.domain.execution.DestinationExecutionStatus;
 import io.github.avinashio.ozhuku.domain.identity.ExecutionId;
 import io.github.avinashio.ozhuku.domain.identity.ResourceId;
@@ -14,6 +15,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -228,6 +230,15 @@ class DestinationExecutionLifecycleServiceTest {
 
         private DestinationExecution saved() {
             return saved;
+        }
+
+        @Override
+        public List<DestinationExecution> findRecoverableExecutions() {
+            return executions.values().stream()
+                    .filter(e -> e.status() == DestinationExecutionStatus.PENDING
+                            || e.status() == DestinationExecutionStatus.RUNNING
+                            || e.status() == DestinationExecutionStatus.FAILED)
+                    .toList();
         }
 
         private static String key(

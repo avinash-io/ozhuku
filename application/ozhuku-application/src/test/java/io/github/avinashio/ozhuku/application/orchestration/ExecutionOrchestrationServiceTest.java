@@ -31,6 +31,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -387,6 +388,15 @@ class ExecutionOrchestrationServiceTest {
             return executionId.value()
                     + ":"
                     + resourceId.value();
+        }
+
+        @Override
+        public List<DestinationExecution> findRecoverableExecutions() {
+            return executions.values().stream()
+                    .filter(e -> e.status() == DestinationExecutionStatus.PENDING
+                            || e.status() == DestinationExecutionStatus.RUNNING
+                            || e.status() == DestinationExecutionStatus.FAILED)
+                    .toList();
         }
     }
 }

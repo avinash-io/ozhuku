@@ -19,11 +19,13 @@ import io.github.avinashio.ozhuku.application.pipeline.PipelinePlanResolver;
 import io.github.avinashio.ozhuku.application.processing.ExecutionProcessingService;
 import io.github.avinashio.ozhuku.application.record.RecordProcessingService;
 import io.github.avinashio.ozhuku.application.recovery.DestinationExecutionRecoveryPolicy;
+import io.github.avinashio.ozhuku.application.recovery.DestinationOutcomeReconciliationService;
 import io.github.avinashio.ozhuku.application.recovery.DestinationRecoveryDecider;
 import io.github.avinashio.ozhuku.application.recovery.DestinationRecoveryExecutor;
 import io.github.avinashio.ozhuku.application.recovery.DestinationRecoveryService;
 import io.github.avinashio.ozhuku.application.recovery.DestinationRecoveryUseCase;
 import io.github.avinashio.ozhuku.application.recovery.StorageDestinationOutcomeInspector;
+import io.github.avinashio.ozhuku.application.recovery.RecoveryOrchestrationService;
 import io.github.avinashio.ozhuku.application.source.SourceFingerprintService;
 import io.github.avinashio.ozhuku.application.source.SourceIdentityService;
 import io.github.avinashio.ozhuku.application.transfer.ResourceTransferService;
@@ -394,6 +396,15 @@ public class RuntimeConfiguration {
     }
 
     @Bean
+    public DestinationOutcomeReconciliationService destinationOutcomeReconciliationService(
+            final DestinationCommitRepository destinationCommitRepository,
+            final StorageDestinationOutcomeInspector destinationOutcomeInspector) {
+        return new DestinationOutcomeReconciliationService(
+                destinationCommitRepository,
+                destinationOutcomeInspector);
+    }
+
+    @Bean
     public DestinationRecoveryDecider destinationRecoveryDecider(
             final StorageDestinationOutcomeInspector outcomeInspector) {
         return new DestinationRecoveryDecider(outcomeInspector);
@@ -435,5 +446,18 @@ public class RuntimeConfiguration {
                 resourceTransferService,
                 destinationCommitRepository,
                 clock);
+    }
+
+    @Bean
+    public RecoveryOrchestrationService recoveryOrchestrationService(
+            final DestinationExecutionRepository destinationExecutionRepository,
+            final ExecutionRepository executionRepository,
+            final DestinationRecoveryExecutor recoveryExecutor,
+            final DestinationRecoveryService recoveryService) {
+        return new RecoveryOrchestrationService(
+                destinationExecutionRepository,
+                executionRepository,
+                recoveryExecutor,
+                recoveryService);
     }
 }

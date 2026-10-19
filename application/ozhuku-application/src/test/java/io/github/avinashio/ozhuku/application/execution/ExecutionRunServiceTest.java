@@ -49,6 +49,8 @@ import io.github.avinashio.ozhuku.persistence.ProcessingCheckpointRepository;
 import io.github.avinashio.ozhuku.persistence.ProcessingRecordRepository;
 import io.github.avinashio.ozhuku.persistence.SourceExecutionRepository;
 import io.github.avinashio.ozhuku.storage.StorageOutput;
+import io.github.avinashio.ozhuku.domain.execution.CommitStatus;
+import io.github.avinashio.ozhuku.domain.execution.DestinationExecutionStatus;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -529,6 +531,17 @@ class ExecutionRunServiceTest {
 
             this.destinationExecution = destinationExecution;
         }
+
+        @Override
+        public List<DestinationExecution> findRecoverableExecutions() {
+            if (destinationExecution != null
+                    && (destinationExecution.status() == DestinationExecutionStatus.PENDING
+                    || destinationExecution.status() == DestinationExecutionStatus.RUNNING
+                    || destinationExecution.status() == DestinationExecutionStatus.FAILED)) {
+                return List.of(destinationExecution);
+            }
+            return List.of();
+        }
     }
 
     private static final class InMemoryProcessingRecordRepository
@@ -608,6 +621,14 @@ class ExecutionRunServiceTest {
             commits.put(
                     destinationCommit.reference(),
                     destinationCommit);
+        }
+
+        @Override
+        public List<DestinationCommit> findByStatus(
+                final CommitStatus status) {
+            return commits.values().stream()
+                    .filter(c -> c.status() == status)
+                    .toList();
         }
     }
 }

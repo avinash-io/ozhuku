@@ -33,6 +33,7 @@ import io.github.avinashio.ozhuku.domain.execution.FlowExecutionStatus;
 import io.github.avinashio.ozhuku.domain.execution.SourceExecution;
 import io.github.avinashio.ozhuku.domain.execution.SourceExecutionReference;
 import io.github.avinashio.ozhuku.domain.execution.SourceExecutionStatus;
+import io.github.avinashio.ozhuku.domain.execution.CommitStatus;
 import io.github.avinashio.ozhuku.domain.flow.Flow;
 import io.github.avinashio.ozhuku.domain.flow.FlowMode;
 import io.github.avinashio.ozhuku.domain.identity.ExecutionId;
@@ -1475,6 +1476,15 @@ class ExecutionProcessingCoordinatorTest {
 
             return executionId + ":" + resourceId;
         }
+
+        @Override
+        public List<DestinationExecution> findRecoverableExecutions() {
+            return executions.values().stream()
+                    .filter(e -> e.status() == DestinationExecutionStatus.PENDING
+                            || e.status() == DestinationExecutionStatus.RUNNING
+                            || e.status() == DestinationExecutionStatus.FAILED)
+                    .toList();
+        }
     }
 
     private static final class FakeDestinationCommitRepository
@@ -1512,6 +1522,14 @@ class ExecutionProcessingCoordinatorTest {
                 final boolean failWhenSavingCommitted) {
 
             this.failWhenSavingCommitted = failWhenSavingCommitted;
+        }
+
+        @Override
+        public List<DestinationCommit> findByStatus(
+                final CommitStatus status) {
+            return commits.values().stream()
+                    .filter(c -> c.status() == status)
+                    .toList();
         }
     }
 

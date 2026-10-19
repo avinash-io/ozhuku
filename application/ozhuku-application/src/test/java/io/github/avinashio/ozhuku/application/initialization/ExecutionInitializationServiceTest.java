@@ -18,6 +18,7 @@ import io.github.avinashio.ozhuku.domain.execution.FlowExecutionStatus;
 import io.github.avinashio.ozhuku.domain.execution.SourceExecution;
 import io.github.avinashio.ozhuku.domain.execution.SourceExecutionReference;
 import io.github.avinashio.ozhuku.domain.execution.SourceExecutionStatus;
+import io.github.avinashio.ozhuku.domain.execution.CommitStatus;
 import io.github.avinashio.ozhuku.domain.identity.ExecutionId;
 import io.github.avinashio.ozhuku.domain.identity.FlowId;
 import io.github.avinashio.ozhuku.domain.identity.PipelineId;
@@ -29,6 +30,7 @@ import io.github.avinashio.ozhuku.persistence.ExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.FlowExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.SourceExecutionRepository;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -576,6 +578,15 @@ class ExecutionInitializationServiceTest {
 
             return executionId + ":" + resourceId;
         }
+
+        @Override
+        public List<DestinationExecution> findRecoverableExecutions() {
+            return executions.values().stream()
+                    .filter(e -> e.status() == DestinationExecutionStatus.PENDING
+                            || e.status() == DestinationExecutionStatus.RUNNING
+                            || e.status() == DestinationExecutionStatus.FAILED)
+                    .toList();
+        }
     }
 
     private static final class FakeDestinationCommitRepository
@@ -602,6 +613,14 @@ class ExecutionInitializationServiceTest {
             commits.put(
                     destinationCommit.reference(),
                     destinationCommit);
+        }
+
+        @Override
+        public List<DestinationCommit> findByStatus(
+                final CommitStatus status) {
+            return commits.values().stream()
+                    .filter(c -> c.status() == status)
+                    .toList();
         }
     }
 

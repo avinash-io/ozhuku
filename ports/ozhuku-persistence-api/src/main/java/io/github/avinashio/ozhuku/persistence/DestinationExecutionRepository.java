@@ -3,6 +3,7 @@ package io.github.avinashio.ozhuku.persistence;
 import io.github.avinashio.ozhuku.domain.execution.DestinationExecution;
 import io.github.avinashio.ozhuku.domain.identity.ExecutionId;
 import io.github.avinashio.ozhuku.domain.identity.ResourceId;
+import java.util.List;
 import java.util.Optional;
 
 public interface DestinationExecutionRepository {
@@ -12,4 +13,6 @@ public interface DestinationExecutionRepository {
             ResourceId resourceId);
 
     void save(DestinationExecution destinationExecution);
+
+    List<DestinationExecution> findRecoverableExecutions();
 }
