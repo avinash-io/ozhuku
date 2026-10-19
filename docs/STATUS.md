@@ -54,6 +54,7 @@
 - Implemented durable execution-state recovery and failure handling via `RecoveryScheduler` (scheduled @PostConstruct + periodic @Scheduled) wired into Spring with `@EnableScheduling`. Verified with `./mvnw.cmd clean test verify` (BUILD SUCCESS).
 - Added `ResourceProcessingService` placeholder for `RESOURCE_PROCESSING` flow mode and registered it in Spring configuration. Verified with `./mvnw.cmd clean test verify` (BUILD SUCCESS).
 - Added idempotency check in `ExecutionProcessingCoordinator.processResourceTransfer()` to skip already-committed destinations. Verified with `./mvnw.cmd clean test verify` (BUILD SUCCESS).
+- All 8 PostgreSQL persistence repositories (`PostgresExecutionRepository`, `PostgresFlowExecutionRepository`, `PostgresSourceExecutionRepository`, `PostgresDestinationExecutionRepository`, `PostgresDestinationCommitRepository`, `PostgresProcessingRecordRepository`, `PostgresProcessingCheckpointRepository`, `PostgresPipelineConfigurationRepository`) fully implemented with corresponding Testcontainers integration tests (`*IT.java`). Full Maven reactor verification passes (`./mvnw.cmd clean test verify` - BUILD SUCCESS).
 
 ## 2. Pending Tasks
 
