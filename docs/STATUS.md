@@ -55,7 +55,7 @@
 ## 2. Pending Tasks
 
 - Complete durable execution-state recovery and failure handling. (Implemented)
-- Complete idempotency across execution and destination boundaries.
+- Complete idempotency across execution and destination boundaries. (Implemented)
 - Complete remaining persistence implementations and integration coverage.
 - Complete `RESOURCE_PROCESSING` flow support.
 - Implement remaining format adapters beyond CSV.
