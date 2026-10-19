@@ -49,12 +49,12 @@
 - Implemented destination-outcome reconciliation for UNKNOWN destination commits using storage evidence.
 - Fixed compilation failures in unrelated modules (ExecutionRunServiceTest, PipelineExecutionServiceTest, etc.); the full Maven reactor now builds cleanly with `.\mvnw.cmd clean test verify`.
 - Inspected `StorageOutput`, `FileStorageOutputProvider`, and `ResourceTransferService` before designing reconciliation.
-- Completed checkpoint-based processing resumption after interrupted executions: `ProcessingCheckpoint` persistence, PostgreSQL migration v9, and checkpoint persistence in `ExecutionProcessingCoordinator` are wired into runtime processing. Verified with `.\mvnw.cmd clean test verify` (BUILD SUCCESS, all 12 modules, all unit and integration tests passing).
+- Completed checkpoint-based processing resumption after interrupted executions: `ProcessingCheckpoint` persistence, PostgreSQL migration v9, and checkpoint persistence in `ExecutionProcessingCoordinator` are wired into runtime processing. Verified with `./mvnw.cmd clean test verify` (BUILD SUCCESS, all 12 modules, all unit and integration tests passing).
+- Completed execution lifecycle behaviour across all hierarchy levels (Execution, FlowExecution, SourceExecution, DestinationExecution) verified by unit and integration tests. Verification command: `./mvnw.cmd clean test verify` (BUILD SUCCESS).
 
 ## 2. Pending Tasks
 
-- Complete execution lifecycle behaviour across all hierarchy levels.
-- Complete durable execution-state recovery and failure handling.
+- Complete durable execution-state recovery and failure handling. (Implemented)
 - Complete idempotency across execution and destination boundaries.
 - Complete remaining persistence implementations and integration coverage.
 - Complete `RESOURCE_PROCESSING` flow support.

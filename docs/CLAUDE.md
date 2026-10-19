@@ -1,5 +1,19 @@
 # Ozhuku — Autonomous Development Rules
 
+## Tool Guidelines
+* Always use the `powershell` tool instead of the `bash` tool.
+* When executing scripts, prefer writing a `.ps1` file and running it via `pwsh -File <script>.ps1` to prevent quoting syntax errors.
+
+## Build and Test Commands
+* Clean and build the project: `mvn clean install`
+* Run all unit tests: `mvn test`
+* Run a specific test class: `mvn test -Dtest=ClassName`
+* Run the application: `mvn exec:java -Dexec.mainClass="com.example.Main"` (Wrap strings in double quotes for PowerShell)
+
+## Environment Constraints
+* Ensure commands are executed using the local `mvn` wrapper (`.\mvnw`) if it is present in the repository root.
+
+
 ## Source of Truth
 Before starting work, read `STATUS.md`, the Master Development Prompt, the frozen architecture documentation, and relevant project instructions. Inspect the actual repository and Git state. The repository and tests are authoritative for implementation status.
 
