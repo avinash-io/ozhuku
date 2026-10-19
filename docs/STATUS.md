@@ -45,12 +45,14 @@
 - Commit `e9cb463` aligned Testcontainers dependency versions and was pushed to `origin/master`.
 - Commit `e8f5b83` configured Maven Failsafe integration tests and was pushed to `origin/master`.
 - The repository was confirmed clean and synchronised with `origin/master` after the latest commit.
+- Implemented destination-recovery orchestration with recoverable-candidate discovery and production integration.
+- Implemented destination-outcome reconciliation for UNKNOWN destination commits using storage evidence.
+- Fixed compilation failures in unrelated modules (ExecutionRunServiceTest, PipelineExecutionServiceTest, etc.); the full Maven reactor now builds cleanly with `.\mvnw.cmd clean test verify`.
+- Inspected `StorageOutput`, `FileStorageOutputProvider`, and `ResourceTransferService` before designing reconciliation.
+- Completed checkpoint-based processing resumption after interrupted executions: `ProcessingCheckpoint` persistence, PostgreSQL migration v9, and checkpoint persistence in `ExecutionProcessingCoordinator` are wired into runtime processing. Verified with `.\mvnw.cmd clean test verify` (BUILD SUCCESS, all 12 modules, all unit and integration tests passing).
 
 ## 2. Pending Tasks
 
-- Implement destination-outcome reconciliation when the persisted commit status is `UNKNOWN`.
-- Inspect `StorageOutput`, `FileStorageOutputProvider`, and `ResourceTransferService` before designing reconciliation.
-- Complete checkpoint-based processing resumption after interrupted executions.
 - Complete execution lifecycle behaviour across all hierarchy levels.
 - Complete durable execution-state recovery and failure handling.
 - Complete idempotency across execution and destination boundaries.
