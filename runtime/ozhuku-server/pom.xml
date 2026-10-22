@@ -49,6 +49,16 @@
 
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-actuator</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-web</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>
 		</dependency>
@@ -85,6 +95,30 @@
 		<dependency>
 			<groupId>io.github.avinashio.ozhuku</groupId>
 			<artifactId>ozhuku-persistence-postgres</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+
+		<dependency>
+			<groupId>io.github.avinashio.ozhuku</groupId>
+			<artifactId>ozhuku-security-api</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+
+		<dependency>
+			<groupId>io.github.avinashio.ozhuku</groupId>
+			<artifactId>ozhuku-security-secrets</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+
+		<dependency>
+			<groupId>io.github.avinashio.ozhuku</groupId>
+			<artifactId>ozhuku-notification-api</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+
+		<dependency>
+			<groupId>io.github.avinashio.ozhuku</groupId>
+			<artifactId>ozhuku-notification-email</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 
