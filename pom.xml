@@ -31,6 +31,7 @@
         <module>adapters/ozhuku-storage-file</module>
         <module>adapters/ozhuku-format-csv</module>
         <module>adapters/ozhuku-format-json</module>
+        <module>adapters/ozhuku-format-xml</module>
 
         <module>application/ozhuku-application</module>
 

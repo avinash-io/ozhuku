@@ -57,10 +57,11 @@
 - Implemented placeholder for `RESOURCE_PROCESSING` flow support (no‑op implementation) in `ResourceProcessingService` and wired into Spring configuration. Verified with `./mvnw.cmd clean test verify` (BUILD SUCCESS).
 - Added `ResourceProcessingService` placeholder for `RESOURCE_PROCESSING` flow mode and registered it in Spring configuration. Verified with `./mvnw.cmd clean test verify` (BUILD SUCCESS).
 - Implemented JSON format adapter module (`ozhuku-format-json`) with `JsonFormatReader`, `JsonFormatWriter`, `JsonReaderConfiguration`, and `JsonWriterConfiguration`. Supports JSON array-wrapped and newline-delimited JSON (NDJSON). Includes 22 unit tests covering configuration, record reading, record writing, boolean/null/numeric values, empty input, and error states. Verified with `./mvnw clean test verify` (BUILD SUCCESS, all 13 modules, Checkstyle 0 violations).
+- Implemented XML format adapter module (`ozhuku-format-xml`) with `XmlFormatReader`, `XmlFormatWriter`, `XmlReaderConfiguration`, and `XmlWriterConfiguration`. Uses JDK built-in StAX streaming API for bounded memory usage. Supports configurable record/root element names, charset selection, and pretty-printing. Reads typed values (boolean, integer, decimal, string, null) with heuristic type inference; writes null values as nil attributes with self-closing elements and binary values as Base64. Includes 30 unit tests covering configuration, record reading, record writing, boolean/null/numeric/binary values, empty input, custom element names, and error states. Verified with `./mvnw clean test verify` (BUILD SUCCESS, all 13 modules, Checkstyle 0 violations).
 
 ## 2. Pending Tasks
 
-- Implement additional format adapters beyond CSV and JSON (e.g., XML, Avro, Parquet).
+- Implement additional format adapters beyond CSV, JSON, and XML (e.g., Avro, Parquet).
 - Implement additional storage adapters, including S3.
 - Complete acquisition pull and push implementations.
 - Complete HTTP, SOAP, and gRPC transport adapters.
