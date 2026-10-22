@@ -64,12 +64,13 @@
 - Implemented acquisition pull and push contracts: `ozhuku-acquisition-api` port module with `SourceScanner`, `ResourceAcquirer`, `ScannedResource`, `PushResource`, `PushResourceStatus`, and `PushResourceRepository` interfaces. Added `ozhuku-transport-api` port module with `HttpClient`, `HttpRequest`, and `HttpResponse` interfaces for technology-neutral HTTP transport.
 - Completed acquisition pull adapter (`ozhuku-acquisition-pull`) with `FileSourceScanner` (filesystem directory scanning) and `FileResourceAcquirer` (streaming file content access). Includes 7 unit tests.
 - Completed acquisition push adapter (`ozhuku-acquisition-push`) with `InboundResourceReceiver` (staging inbound resources with SHA-256 checksum, size limit enforcement, atomic file moves, deduplication support via sender/externalMessageId). Includes `CountingInputStream` helper for streaming checksum computation. Includes 3 unit tests.
-- Completed HTTP transport adapter (`ozhuku-transport-http`) with `JdkHttpClient` implementing the `HttpClient` port contract using JDK `java.net.http.HttpClient`. Supports GET, POST (with and without body), and PUT operations with streaming response bodies, custom headers, content types, and connect timeouts. Includes 17 unit tests using MockWebServer. Verified with `./mvnw.cmd clean test verify` (BUILD SUCCESS, all 21 modules, 199 total tests pass, Checkstyle 0 violations).
+- Completed HTTP transport adapter (`ozhuku-transport-http`) with `JdkHttpClient` implementing the `HttpClient` port contract using JDK `java.net.http.HttpClient`. Supports GET, POST (with and without body), and PUT operations with streaming response bodies, custom headers, content types, and connect timeouts. Includes 17 unit tests using MockWebServer.
+- Completed SOAP transport adapter (`ozhuku-transport-soap`) with `SoapTransportClient` wrapping the `HttpClient` port contract for SOAP 1.1/1.2 message exchange. Provides `SoapMessage` (envelope, SOAPAction, content type), `SoapResponse` (status code, envelope, headers, fault string extraction), and delegates HTTP transport to the injected `HttpClient`. Includes 17 unit tests using a test `HttpClient` double. Verified with `./mvnw.cmd clean test verify` (BUILD SUCCESS, all 22 modules, Checkstyle 0 violations)..
 
 ## 2. Pending Tasks
 
-- Complete SOAP transport adapter.
 - Complete gRPC transport adapter.
+- Complete security and secret-management implementations.
 - Complete security and secret-management implementations.
 - Complete notification and email implementations.
 - Complete Actuator health and diagnostics endpoints.
