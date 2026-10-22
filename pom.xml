@@ -34,6 +34,7 @@
         <module>adapters/ozhuku-storage-s3</module>
         <module>adapters/ozhuku-acquisition-pull</module>
         <module>adapters/ozhuku-acquisition-push</module>
+        <module>adapters/ozhuku-transport-http</module>
         <module>adapters/ozhuku-format-csv</module>
         <module>adapters/ozhuku-format-json</module>
         <module>adapters/ozhuku-format-xml</module>
