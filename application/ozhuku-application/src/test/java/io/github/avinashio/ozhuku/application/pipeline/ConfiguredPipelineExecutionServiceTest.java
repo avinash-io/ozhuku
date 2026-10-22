@@ -12,6 +12,8 @@ import io.github.avinashio.ozhuku.application.processing.ExecutionProcessingServ
 import io.github.avinashio.ozhuku.application.record.RecordProcessingService;
 import io.github.avinashio.ozhuku.application.source.SourceFingerprintService;
 import io.github.avinashio.ozhuku.application.source.SourceIdentityService;
+import io.github.avinashio.ozhuku.domain.identity.SourceIdentity;
+import java.util.Optional;
 import io.github.avinashio.ozhuku.application.transfer.ResourceTransferService;
 import io.github.avinashio.ozhuku.domain.checkpoint.ProcessingCheckpoint;
 import io.github.avinashio.ozhuku.domain.delivery.ConflictBehavior;
@@ -179,12 +181,21 @@ class ConfiguredPipelineExecutionServiceTest {
                         processingRecordRepository,
                         processingCheckpointRepository,
                         destinationCommitRepository,
-                        clock);
+                        clock,
+                        Optional.empty());
+
+        final SourceIdentityService sourceIdentityService =
+                new SourceIdentityService(
+                        resource ->
+                                new SourceIdentity(
+                                        resource.location().value()));
 
         final ExecutionRunService executionRunService =
                 new ExecutionRunService(
                         initializationService,
-                        processingCoordinator);
+                        processingCoordinator,
+                        sourceIdentityService,
+                        Optional.empty());
 
         final PipelineExecutionService pipelineExecutionService =
                 new PipelineExecutionService(
@@ -422,12 +433,21 @@ class ConfiguredPipelineExecutionServiceTest {
                         processingRecordRepository,
                         processingCheckpointRepository,
                         destinationCommitRepository,
-                        clock);
+                        clock,
+                        Optional.empty());
+
+        final SourceIdentityService sourceIdentityService =
+                new SourceIdentityService(
+                        resource ->
+                                new SourceIdentity(
+                                        resource.location().value()));
 
         return new PipelineExecutionService(
                 new ExecutionRunService(
                         initializationService,
-                        processingCoordinator));
+                        processingCoordinator,
+                        sourceIdentityService,
+                        Optional.empty()));
     }
 
     private static PipelineConfiguration configuration() {

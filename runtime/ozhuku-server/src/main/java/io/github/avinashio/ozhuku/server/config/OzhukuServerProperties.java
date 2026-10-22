@@ -47,6 +47,14 @@ public class OzhukuServerProperties {
     private int leaseTimeoutSeconds = 30;
 
     /**
+     * Unique identifier for this worker node. Used when acquiring
+     * execution leases to identify the worker holding a lease.
+     * Only relevant when distributed mode is enabled.
+     * Bound from {@code ozhuku.worker-id}.
+     */
+    private String workerId = "ozhuku-worker";
+
+    /**
      * Returns the configured storage root as a Path.
      *
      * @return the storage root path
@@ -131,5 +139,25 @@ public class OzhukuServerProperties {
     public void setLeaseTimeoutSeconds(
             final int leaseTimeoutSeconds) {
         this.leaseTimeoutSeconds = leaseTimeoutSeconds;
+    }
+
+    /**
+     * Returns the configured worker identifier.
+     *
+     * @return the worker ID
+     */
+    @NotBlank
+    public String getWorkerId() {
+        return workerId;
+    }
+
+    /**
+     * Sets the worker identifier.
+     *
+     * @param workerId the worker ID
+     */
+    public void setWorkerId(
+            final String workerId) {
+        this.workerId = workerId;
     }
 }

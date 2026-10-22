@@ -1099,7 +1099,8 @@ class ExecutionProcessingCoordinatorTest {
                 processingRecordRepository,
                 processingCheckpointRepository,
                 destinationCommitRepository,
-                clock);
+                clock,
+                Optional.empty());
     }
 
     private ExecutionProcessingCoordinator createService(
@@ -1140,7 +1141,8 @@ class ExecutionProcessingCoordinatorTest {
                 processingRecordRepository,
                 processingCheckpointRepository,
                 destinationCommitRepository,
-                clock);
+                clock,
+                Optional.empty());
     }
 
     private static ExecutionReference createExecutionReference() {

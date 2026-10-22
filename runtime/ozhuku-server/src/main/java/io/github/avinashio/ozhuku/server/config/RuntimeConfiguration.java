@@ -11,6 +11,7 @@ import io.github.avinashio.ozhuku.application.execution.ExecutionRunService;
 import io.github.avinashio.ozhuku.application.execution.FlowExecutionLifecycleService;
 import io.github.avinashio.ozhuku.application.execution.PipelineExecutionService;
 import io.github.avinashio.ozhuku.application.execution.ResourceProcessingService;
+import io.github.avinashio.ozhuku.application.execution.LeaseAcquisitionService;
 import io.github.avinashio.ozhuku.application.execution.SourceExecutionLifecycleService;
 import io.github.avinashio.ozhuku.application.initialization.ExecutionInitializationService;
 import io.github.avinashio.ozhuku.application.orchestration.ExecutionOrchestrationService;
@@ -71,6 +72,7 @@ import io.github.avinashio.ozhuku.storage.file.FileStoragePathResolver;
 import io.github.avinashio.ozhuku.storage.file.FileStorageReader;
 import io.github.avinashio.ozhuku.storage.file.FileStorageWriter;
 import java.nio.file.Path;
+import java.util.Optional;
 import java.time.Clock;
 import javax.sql.DataSource;
 import org.springframework.context.annotation.Bean;
@@ -352,7 +354,9 @@ public class RuntimeConfiguration {
             final ProcessingRecordRepository processingRecordRepository,
             final ProcessingCheckpointRepository processingCheckpointRepository,
             final DestinationCommitRepository destinationCommitRepository,
-            final Clock clock) {
+            final Clock clock,
+            final Optional<LeaseAcquisitionService> leaseAcquisitionService) {
+
         return new ExecutionProcessingCoordinator(
                 executionOrchestrationService,
                 executionProcessingService,
@@ -361,16 +365,40 @@ public class RuntimeConfiguration {
                 processingRecordRepository,
                 processingCheckpointRepository,
                 destinationCommitRepository,
-                clock);
+                clock,
+                leaseAcquisitionService);
+    }
+
+    @Bean
+    public Optional<LeaseAcquisitionService> leaseAcquisitionService(
+            final LeaseRepository leaseRepository,
+            final Clock clock,
+            final OzhukuServerProperties properties) {
+
+        if (!properties.isDistributedEnabled()) {
+            return Optional.empty();
+        }
+
+        return Optional.of(
+                new LeaseAcquisitionService(
+                        leaseRepository,
+                        clock,
+                        properties.getWorkerId(),
+                        properties.getLeaseTimeoutSeconds()));
     }
 
     @Bean
     public ExecutionRunService executionRunService(
             final ExecutionInitializationService executionInitializationService,
-            final ExecutionProcessingCoordinator executionProcessingCoordinator) {
+            final ExecutionProcessingCoordinator executionProcessingCoordinator,
+            final SourceIdentityService sourceIdentityService,
+            final Optional<LeaseAcquisitionService> leaseAcquisitionService) {
+
         return new ExecutionRunService(
                 executionInitializationService,
-                executionProcessingCoordinator);
+                executionProcessingCoordinator,
+                sourceIdentityService,
+                leaseAcquisitionService);
     }
 
     @Bean

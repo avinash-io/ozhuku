@@ -11,6 +11,7 @@ import io.github.avinashio.ozhuku.application.processing.ExecutionProcessingServ
 import io.github.avinashio.ozhuku.application.record.RecordProcessingService;
 import io.github.avinashio.ozhuku.application.source.SourceFingerprintService;
 import io.github.avinashio.ozhuku.application.source.SourceIdentityService;
+import io.github.avinashio.ozhuku.domain.identity.SourceIdentity;
 import io.github.avinashio.ozhuku.application.transfer.ResourceTransferService;
 import io.github.avinashio.ozhuku.domain.deduplication.DeduplicationEvaluator;
 import io.github.avinashio.ozhuku.domain.deduplication.DuplicatePolicy;
@@ -56,6 +57,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.time.Clock;
 import java.util.HashMap;
+import java.util.Optional;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -122,10 +124,18 @@ class ExecutionRunServiceTest {
         final ExecutionProcessingCoordinator processingCoordinator =
                 createProcessingCoordinator();
 
+        final SourceIdentityService sourceIdentityService =
+                new SourceIdentityService(
+                        resource ->
+                                new SourceIdentity(
+                                        resource.location().value()));
+
         service =
                 new ExecutionRunService(
                         initializationService,
-                        processingCoordinator);
+                        processingCoordinator,
+                        sourceIdentityService,
+                        Optional.empty());
     }
 
     @Test
@@ -336,7 +346,8 @@ class ExecutionRunServiceTest {
                 processingRecordRepository,
                 processingCheckpointRepository,
                 destinationCommitRepository,
-                clock);
+                clock,
+                Optional.empty());
     }
 
     private static PipelinePlan pipelinePlan(
