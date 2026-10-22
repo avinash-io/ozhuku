@@ -26,10 +26,14 @@
         <module>ports/ozhuku-persistence-api</module>
         <module>ports/ozhuku-storage-api</module>
         <module>ports/ozhuku-format-api</module>
+        <module>ports/ozhuku-acquisition-api</module>
+        <module>ports/ozhuku-transport-api</module>
 
         <module>adapters/ozhuku-persistence-postgres</module>
         <module>adapters/ozhuku-storage-file</module>
         <module>adapters/ozhuku-storage-s3</module>
+        <module>adapters/ozhuku-acquisition-pull</module>
+        <module>adapters/ozhuku-acquisition-push</module>
         <module>adapters/ozhuku-format-csv</module>
         <module>adapters/ozhuku-format-json</module>
         <module>adapters/ozhuku-format-xml</module>
