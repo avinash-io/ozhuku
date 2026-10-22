@@ -37,22 +37,24 @@ import io.github.avinashio.ozhuku.format.csv.CsvFormatReader;
 import io.github.avinashio.ozhuku.format.csv.CsvFormatWriter;
 import io.github.avinashio.ozhuku.format.csv.CsvReaderConfiguration;
 import io.github.avinashio.ozhuku.format.csv.CsvWriterConfiguration;
+import io.github.avinashio.ozhuku.persistence.AuditEventRepository;
 import io.github.avinashio.ozhuku.persistence.DestinationCommitRepository;
 import io.github.avinashio.ozhuku.persistence.DestinationExecutionRepository;
+import io.github.avinashio.ozhuku.persistence.ExecutionReportRepository;
 import io.github.avinashio.ozhuku.persistence.ExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.FlowExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.PipelineConfigurationRepository;
 import io.github.avinashio.ozhuku.persistence.ProcessingCheckpointRepository;
-import io.github.avinashio.ozhuku.persistence.AuditEventRepository;
 import io.github.avinashio.ozhuku.persistence.ProcessingRecordRepository;
 import io.github.avinashio.ozhuku.persistence.SourceExecutionRepository;
+import io.github.avinashio.ozhuku.persistence.postgres.PostgresAuditEventRepository;
 import io.github.avinashio.ozhuku.persistence.postgres.PostgresDestinationCommitRepository;
 import io.github.avinashio.ozhuku.persistence.postgres.PostgresDestinationExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.postgres.PostgresExecutionRepository;
+import io.github.avinashio.ozhuku.persistence.postgres.PostgresExecutionReportRepository;
 import io.github.avinashio.ozhuku.persistence.postgres.PostgresFlowExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.postgres.PostgresPipelineConfigurationRepository;
 import io.github.avinashio.ozhuku.persistence.postgres.PostgresProcessingCheckpointRepository;
-import io.github.avinashio.ozhuku.persistence.postgres.PostgresAuditEventRepository;
 import io.github.avinashio.ozhuku.persistence.postgres.PostgresProcessingRecordRepository;
 import io.github.avinashio.ozhuku.persistence.postgres.PostgresSourceExecutionRepository;
 import io.github.avinashio.ozhuku.storage.DestinationWriteEvidenceStore;
@@ -181,6 +183,12 @@ public class RuntimeConfiguration {
     public AuditEventRepository auditEventRepository(
             final DataSource dataSource) {
         return new PostgresAuditEventRepository(dataSource);
+    }
+
+    @Bean
+    public ExecutionReportRepository executionReportRepository(
+            final DataSource dataSource) {
+        return new PostgresExecutionReportRepository(dataSource);
     }
 
     @Bean
