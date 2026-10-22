@@ -43,6 +43,7 @@ import io.github.avinashio.ozhuku.persistence.ExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.FlowExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.PipelineConfigurationRepository;
 import io.github.avinashio.ozhuku.persistence.ProcessingCheckpointRepository;
+import io.github.avinashio.ozhuku.persistence.AuditEventRepository;
 import io.github.avinashio.ozhuku.persistence.ProcessingRecordRepository;
 import io.github.avinashio.ozhuku.persistence.SourceExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.postgres.PostgresDestinationCommitRepository;
@@ -51,6 +52,7 @@ import io.github.avinashio.ozhuku.persistence.postgres.PostgresExecutionReposito
 import io.github.avinashio.ozhuku.persistence.postgres.PostgresFlowExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.postgres.PostgresPipelineConfigurationRepository;
 import io.github.avinashio.ozhuku.persistence.postgres.PostgresProcessingCheckpointRepository;
+import io.github.avinashio.ozhuku.persistence.postgres.PostgresAuditEventRepository;
 import io.github.avinashio.ozhuku.persistence.postgres.PostgresProcessingRecordRepository;
 import io.github.avinashio.ozhuku.persistence.postgres.PostgresSourceExecutionRepository;
 import io.github.avinashio.ozhuku.storage.DestinationWriteEvidenceStore;
@@ -173,6 +175,12 @@ public class RuntimeConfiguration {
     public ProcessingCheckpointRepository processingCheckpointRepository(
             final DataSource dataSource) {
         return new PostgresProcessingCheckpointRepository(dataSource);
+    }
+
+    @Bean
+    public AuditEventRepository auditEventRepository(
+            final DataSource dataSource) {
+        return new PostgresAuditEventRepository(dataSource);
     }
 
     @Bean
