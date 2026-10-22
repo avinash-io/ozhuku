@@ -43,6 +43,7 @@ import io.github.avinashio.ozhuku.persistence.DestinationExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.ExecutionReportRepository;
 import io.github.avinashio.ozhuku.persistence.ExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.FlowExecutionRepository;
+import io.github.avinashio.ozhuku.persistence.LeaseRepository;
 import io.github.avinashio.ozhuku.persistence.PipelineConfigurationRepository;
 import io.github.avinashio.ozhuku.persistence.ProcessingCheckpointRepository;
 import io.github.avinashio.ozhuku.persistence.ProcessingRecordRepository;
@@ -53,6 +54,7 @@ import io.github.avinashio.ozhuku.persistence.postgres.PostgresDestinationExecut
 import io.github.avinashio.ozhuku.persistence.postgres.PostgresExecutionRepository;
 import io.github.avinashio.ozhuku.persistence.postgres.PostgresExecutionReportRepository;
 import io.github.avinashio.ozhuku.persistence.postgres.PostgresFlowExecutionRepository;
+import io.github.avinashio.ozhuku.persistence.postgres.PostgresLeaseRepository;
 import io.github.avinashio.ozhuku.persistence.postgres.PostgresPipelineConfigurationRepository;
 import io.github.avinashio.ozhuku.persistence.postgres.PostgresProcessingCheckpointRepository;
 import io.github.avinashio.ozhuku.persistence.postgres.PostgresProcessingRecordRepository;
@@ -189,6 +191,12 @@ public class RuntimeConfiguration {
     public ExecutionReportRepository executionReportRepository(
             final DataSource dataSource) {
         return new PostgresExecutionReportRepository(dataSource);
+    }
+
+    @Bean
+    public LeaseRepository leaseRepository(
+            final DataSource dataSource) {
+        return new PostgresLeaseRepository(dataSource);
     }
 
     @Bean
