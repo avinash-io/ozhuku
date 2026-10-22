@@ -28,12 +28,14 @@
         <module>ports/ozhuku-format-api</module>
         <module>ports/ozhuku-acquisition-api</module>
         <module>ports/ozhuku-transport-api</module>
+        <module>ports/ozhuku-security-api</module>
 
         <module>adapters/ozhuku-persistence-postgres</module>
         <module>adapters/ozhuku-storage-file</module>
         <module>adapters/ozhuku-storage-s3</module>
         <module>adapters/ozhuku-acquisition-pull</module>
         <module>adapters/ozhuku-acquisition-push</module>
+        <module>adapters/ozhuku-security-secrets</module>
         <module>adapters/ozhuku-transport-http</module>
         <module>adapters/ozhuku-transport-soap</module>
         <module>adapters/ozhuku-transport-grpc</module>

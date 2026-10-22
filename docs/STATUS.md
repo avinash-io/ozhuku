@@ -67,10 +67,11 @@
 - Completed HTTP transport adapter (`ozhuku-transport-http`) with `JdkHttpClient` implementing the `HttpClient` port contract using JDK `java.net.http.HttpClient`. Supports GET, POST (with and without body), and PUT operations with streaming response bodies, custom headers, content types, and connect timeouts. Includes 17 unit tests using MockWebServer.
 - Completed SOAP transport adapter (`ozhuku-transport-soap`) with `SoapTransportClient` wrapping the `HttpClient` port contract for SOAP 1.1/1.2 message exchange. Provides `SoapMessage` (envelope, SOAPAction, content type), `SoapResponse` (status code, envelope, headers, fault string extraction), and delegates HTTP transport to the injected `HttpClient`. Includes 17 unit tests using a test `HttpClient` double. Verified with `./mvnw.cmd clean test verify` (BUILD SUCCESS, all 22 modules, Checkstyle 0 violations).
 - Completed gRPC transport adapter (`ozhuku-transport-grpc`) with `GrpcTransportClient`, `GrpcCallRequest`, `GrpcCallResponse`, `GrpcChannelConfig`, and `GrpcMarshallers`. Uses gRPC 1.70.0 with `ManagedChannelBuilder`, `ClientCalls.blockingUnaryCall`, opaque byte-array marshalling for protobuf payloads, and `AutoCloseable` lifecycle management. Includes 17 unit tests using in-process gRPC server with custom `ServerCallHandler` implementation, covering unary calls, metadata, error statuses (NOT_FOUND, INTERNAL), timeout enforcement, and channel configuration (TLS, connect timeout). Verified with `./mvnw clean test verify` (BUILD SUCCESS, 17 tests pass, Checkstyle 0 violations).
+- Completed security and secret-management API (`ozhuku-security-api`) with `SecretReference`, `SecretResolver` interface, and `SecretResolutionException`. Supports resolving secrets from environment variables, files, and composite resolution strategies.
+- Completed secret store adapter (`ozhuku-security-secrets`) with `EnvVarSecretResolver`, `FileSecretResolver`, and `CompositeSecretResolver`. Supports `env://` and `file://` reference schemes for secret resolution. 13 unit tests verify resolution, fallback, trimming, and null handling. Verified with `./mvnw clean test verify` (BUILD SUCCESS, all 13 tests pass, Checkstyle 0 violations).
 
 ## 2. Pending Tasks
 
-- Complete security and secret-management implementations.
 - Complete notification and email implementations.
 - Complete Actuator health and diagnostics endpoints.
 - Complete configuration hierarchy and validation behaviour.
