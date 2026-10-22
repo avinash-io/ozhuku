@@ -32,6 +32,7 @@
         <module>adapters/ozhuku-format-csv</module>
         <module>adapters/ozhuku-format-json</module>
         <module>adapters/ozhuku-format-xml</module>
+        <module>adapters/ozhuku-format-avro</module>
 
         <module>application/ozhuku-application</module>
 
