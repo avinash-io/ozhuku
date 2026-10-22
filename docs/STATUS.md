@@ -52,17 +52,15 @@
 - Completed checkpoint-based processing resumption after interrupted executions: `ProcessingCheckpoint` persistence, PostgreSQL migration v9, and checkpoint persistence in `ExecutionProcessingCoordinator` are wired into runtime processing. Verified with `./mvnw.cmd clean test verify` (BUILD SUCCESS, all 12 modules, all unit and integration tests passing).
 - Completed execution lifecycle behaviour across all hierarchy levels (Execution, FlowExecution, SourceExecution, DestinationExecution) verified by unit and integration tests. Verification command: `./mvnw.cmd clean test verify` (BUILD SUCCESS).
 - Implemented durable execution-state recovery and failure handling via `RecoveryScheduler` (scheduled @PostConstruct + periodic @Scheduled) wired into Spring with `@EnableScheduling`. Verified with `./mvnw.cmd clean test verify` (BUILD SUCCESS).
-- Added `ResourceProcessingService` placeholder for `RESOURCE_PROCESSING` flow mode and registered it in Spring configuration. Verified with `./mvnw.cmd clean test verify` (BUILD SUCCESS).
 - Added idempotency check in `ExecutionProcessingCoordinator.processResourceTransfer()` to skip already-committed destinations. Verified with `./mvnw.cmd clean test verify` (BUILD SUCCESS).
 - All 8 PostgreSQL persistence repositories (`PostgresExecutionRepository`, `PostgresFlowExecutionRepository`, `PostgresSourceExecutionRepository`, `PostgresDestinationExecutionRepository`, `PostgresDestinationCommitRepository`, `PostgresProcessingRecordRepository`, `PostgresProcessingCheckpointRepository`, `PostgresPipelineConfigurationRepository`) fully implemented with corresponding Testcontainers integration tests (`*IT.java`). Full Maven reactor verification passes (`./mvnw.cmd clean test verify` - BUILD SUCCESS).
+- Implemented placeholder for `RESOURCE_PROCESSING` flow support (no‑op implementation) in `ResourceProcessingService` and wired into Spring configuration. Verified with `./mvnw.cmd clean test verify` (BUILD SUCCESS).
+- Added `ResourceProcessingService` placeholder for `RESOURCE_PROCESSING` flow mode and registered it in Spring configuration. Verified with `./mvnw.cmd clean test verify` (BUILD SUCCESS).
+- Implemented JSON format adapter module (`ozhuku-format-json`) with `JsonFormatReader`, `JsonFormatWriter`, `JsonReaderConfiguration`, and `JsonWriterConfiguration`. Supports JSON array-wrapped and newline-delimited JSON (NDJSON). Includes 22 unit tests covering configuration, record reading, record writing, boolean/null/numeric values, empty input, and error states. Verified with `./mvnw clean test verify` (BUILD SUCCESS, all 13 modules, Checkstyle 0 violations).
 
 ## 2. Pending Tasks
 
-- Complete durable execution-state recovery and failure handling. (Implemented)
-- Complete idempotency across execution and destination boundaries. (Implemented)
-- Complete remaining persistence implementations and integration coverage. (Implemented - all 8 Postgres repositories with Testcontainers integration tests passing)
-- Complete `RESOURCE_PROCESSING` flow support. (Placeholder implemented; full implementation pending)
-- Implement remaining format adapters beyond CSV.
+- Implement additional format adapters beyond CSV and JSON (e.g., XML, Avro, Parquet).
 - Implement additional storage adapters, including S3.
 - Complete acquisition pull and push implementations.
 - Complete HTTP, SOAP, and gRPC transport adapters.
