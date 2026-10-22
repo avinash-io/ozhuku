@@ -4,6 +4,10 @@
 * Always use the `powershell` tool instead of the `bash` tool.
 * When executing scripts, prefer writing a `.ps1` file and running it via `pwsh -File <script>.ps1` to prevent quoting syntax errors.
 
+## Shell Preferences
+* Always use the PowerShell tool instead of Bash when executing commands on this machine.
+* Respect Windows pathing and PowerShell cmdlet syntax (e.g., Get-ChildItem).
+
 ## Build and Test Commands
 * Clean and build the project: `mvn clean install`
 * Run all unit tests: `mvn test`
@@ -40,7 +44,6 @@ Before starting work, read `STATUS.md`, the Master Development Prompt, the froze
 ## Windows Development Environment
 
 - The primary development environment is Windows 11 using PowerShell and IntelliJ IDEA.
-- Use PowerShell-compatible commands by default; do not assume Bash, Linux, or macOS.
 - Run Maven through the Windows wrapper: `.\mvnw.cmd`.
 - Use PowerShell-compatible file operations and environment-variable syntax.
 - Do not use Unix-only commands such as `export`, `rm -rf`, or `grep` unless running them through an explicitly available compatible shell.

@@ -109,6 +109,37 @@ public final class ExecutionRunService {
                 request);
     }
 
+    public void runResourceProcessing(
+            final ExecutionReference executionReference,
+            final PipelinePlan pipelinePlan)
+            throws IOException {
+
+        Objects.requireNonNull(
+                executionReference,
+                "executionReference must not be null");
+
+        Objects.requireNonNull(
+                pipelinePlan,
+                "pipelinePlan must not be null");
+
+        final ResourceTransferRequest request =
+                new ResourceTransferRequest(
+                        pipelinePlan.source(),
+                        pipelinePlan.destination(),
+                        pipelinePlan.deliveryPolicy());
+
+        initialize(
+                executionReference,
+                pipelinePlan.flow().id(),
+                request.source().id(),
+                request.destination().id());
+
+        executionProcessingCoordinator.processResourceProcessing(
+                executionReference,
+                pipelinePlan,
+                request);
+    }
+
     private void initialize(
             final ExecutionReference executionReference,
             final FlowId flowId,

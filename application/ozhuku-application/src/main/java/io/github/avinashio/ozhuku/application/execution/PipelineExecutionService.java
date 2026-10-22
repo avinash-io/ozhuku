@@ -45,8 +45,9 @@ public final class PipelineExecutionService {
                             "RECORD_PROCESSING requires format reader and writer");
 
             case RESOURCE_PROCESSING ->
-                    throw new UnsupportedOperationException(
-                            "RESOURCE_PROCESSING execution is not implemented yet");
+                    executionRunService.runResourceProcessing(
+                            executionReference,
+                            pipelinePlan);
         }
     }
 

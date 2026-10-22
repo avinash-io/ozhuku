@@ -202,6 +202,81 @@ public final class ExecutionProcessingCoordinator {
         }
     }
 
+    public void processResourceProcessing(
+            final ExecutionReference executionReference,
+            final PipelinePlan pipelinePlan,
+            final ResourceTransferRequest request)
+            throws IOException {
+
+        Objects.requireNonNull(
+                executionReference,
+                "executionReference must not be null");
+
+        Objects.requireNonNull(
+                pipelinePlan,
+                "pipelinePlan must not be null");
+
+        Objects.requireNonNull(
+                request,
+                "request must not be null");
+
+        final ExecutionId executionId =
+                executionReference.executionId();
+
+        final FlowId flowId =
+                pipelinePlan.flow().id();
+
+        executionResourceValidator.validate(
+                executionId,
+                request.source().id(),
+                request.destination().id());
+
+        executionOrchestrationService.startExecution(
+                executionId,
+                flowId,
+                request.source().id(),
+                request.destination().id());
+
+        try {
+            // Avinash: Persist uncertainty before the destination side effect.
+            saveDestinationCommitUnknown(
+                    executionId,
+                    request.destination().id());
+
+            executionProcessingService.processResourceTransfer(
+                    executionId,
+                    request);
+
+            saveDestinationCommit(
+                    executionId,
+                    request.destination().id());
+
+            // Resource processing does not produce processing records for deduplication.
+
+            executionOrchestrationService.completeExecution(
+                    executionId,
+                    flowId,
+                    request.source().id(),
+                    request.destination().id());
+
+        } catch (IOException exception) {
+            failExecution(
+                    executionId,
+                    flowId,
+                    request,
+                    exception);
+            throw exception;
+
+        } catch (RuntimeException exception) {
+            failExecution(
+                    executionId,
+                    flowId,
+                    request,
+                    exception);
+            throw exception;
+        }
+    }
+
     private boolean isDestinationAlreadyCommitted(final ExecutionId executionId, final ResourceId destinationResourceId) {
         final DestinationExecutionReference destinationExecutionReference =
                 new DestinationExecutionReference(executionId, destinationResourceId);

@@ -1,9 +1,13 @@
 {
-  "enabledPlugins": {
-    "agents-language-specialists@buildwithclaude": true
-  },
   "env": {
     "CLAUDE_CODE_USE_POWERSHELL_TOOL": "1",
     "GATEGUARD_BASH_ROUTINE_DISABLED": "1"
+  },
+  "enabledPlugins": {
+    "agents-language-specialists@buildwithclaude": true,
+    "jdtls-lsp@claude-plugins-official": true,
+    "superpowers@claude-plugins-official": true,
+    "code-simplifier@claude-plugins-official": true,
+    "code-review@claude-plugins-official": true
   }
 }

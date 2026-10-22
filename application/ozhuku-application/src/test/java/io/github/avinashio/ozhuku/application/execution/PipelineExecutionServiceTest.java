@@ -22,6 +22,7 @@ import io.github.avinashio.ozhuku.domain.delivery.ConflictBehavior;
 import io.github.avinashio.ozhuku.domain.delivery.DeliveryPolicy;
 import io.github.avinashio.ozhuku.domain.execution.Execution;
 import io.github.avinashio.ozhuku.domain.execution.ExecutionReference;
+import io.github.avinashio.ozhuku.domain.execution.ExecutionStatus;
 import io.github.avinashio.ozhuku.domain.execution.DestinationExecution;
 import io.github.avinashio.ozhuku.domain.execution.DestinationExecutionStatus;
 import io.github.avinashio.ozhuku.domain.execution.DestinationCommitReference;
@@ -238,22 +239,24 @@ class PipelineExecutionServiceTest {
     }
 
     @Test
-    void shouldRejectUnsupportedResourceProcessing()
+    void shouldExecuteResourceProcessingPipeline()
             throws IOException {
 
         final PipelinePlan pipelinePlan =
                 pipelinePlan(FlowMode.RESOURCE_PROCESSING);
 
-        final UnsupportedOperationException exception =
-                assertThrows(
-                        UnsupportedOperationException.class,
-                        () -> service.execute(
-                                executionReference(),
-                                pipelinePlan));
+        service.execute(
+                executionReference(),
+                pipelinePlan);
+
+        final Execution execution =
+                executionRepository
+                        .findById(EXECUTION_ID)
+                        .orElseThrow();
 
         assertEquals(
-                "RESOURCE_PROCESSING execution is not implemented yet",
-                exception.getMessage());
+                ExecutionStatus.COMPLETED,
+                execution.status());
     }
 
     @Test
