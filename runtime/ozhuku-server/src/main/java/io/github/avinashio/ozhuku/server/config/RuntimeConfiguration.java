@@ -67,7 +67,6 @@ import io.github.avinashio.ozhuku.storage.file.FileStorageWriter;
 import java.nio.file.Path;
 import java.time.Clock;
 import javax.sql.DataSource;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -81,14 +80,15 @@ public class RuntimeConfiguration {
 
     @Bean
     public FileStoragePathResolver fileStoragePathResolver(
-            @Value("${ozhuku.storage.root}") final Path storageRoot) {
-        return new FileStoragePathResolver(storageRoot);
+            final OzhukuServerProperties properties) {
+        return new FileStoragePathResolver(properties.storageRootPath());
     }
 
     @Bean
     public DestinationWriteEvidenceStore destinationWriteEvidenceStore(
-            @Value("${ozhuku.storage.root}") final Path storageRoot) {
-        return new FileDestinationWriteEvidenceStore(storageRoot);
+            final OzhukuServerProperties properties) {
+        return new FileDestinationWriteEvidenceStore(
+                properties.storageRootPath());
     }
 
     @Bean

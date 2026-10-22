@@ -75,7 +75,7 @@
 
 ## 2. Pending Tasks
 
-- Complete configuration hierarchy and validation behaviour.
+- Completed configuration hierarchy and validation behaviour in `ozhuku-server`: Created `OzhukuServerProperties` (`@ConfigurationProperties(prefix = "ozhuku")`) with `@Validated` and field-level validation annotations (`@NotBlank` on `storageRoot`, `@Min(1)` on `maxConcurrentExecutions` and `leaseTimeoutSeconds`). Added default values for all properties (storageRoot=`./workspace`, maxConcurrentExecutions=4, distributedEnabled=false, leaseTimeoutSeconds=30). Updated `RuntimeConfiguration` to inject `OzhukuServerProperties` bean for `fileStoragePathResolver` and `destinationWriteEvidenceStore` beans instead of `@Value` annotations. Added `@ConfigurationPropertiesScan` to `OzhukuServerApplication`. Added `spring-boot-starter-validation` and `spring-boot-configuration-processor` dependencies to `pom.xml`. Created `OzhukuServerPropertiesTest` with 6 unit tests covering defaults, storage root, concurrent execution limits, lease timeout, and distributed mode. Updated `application.properties` with `ozhuku.storageRoot=./workspace` and actuator endpoint exposure config. Fixed integration test property override to use `ozhuku.storageRoot` (matching the configuration properties binding). Verified with `./mvnw.cmd clean test -pl runtime/ozhuku-server` (BUILD SUCCESS, 25 tests pass, Checkstyle 0 violations).
 - Complete audit separation and audit persistence.
 - Complete execution reporting and notification behaviour.
 - Complete distributed execution leases and fencing.

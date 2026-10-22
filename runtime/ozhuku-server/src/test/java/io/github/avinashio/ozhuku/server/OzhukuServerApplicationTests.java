@@ -118,7 +118,7 @@ class OzhukuServerApplicationTests {
                 POSTGRES::getDriverClassName);
 
         registry.add(
-                "ozhuku.storage.root",
+                "ozhuku.storageRoot",
                 () -> storageRoot.toString());
     }
 
