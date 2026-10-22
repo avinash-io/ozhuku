@@ -33,6 +33,7 @@
         <module>adapters/ozhuku-format-json</module>
         <module>adapters/ozhuku-format-xml</module>
         <module>adapters/ozhuku-format-avro</module>
+        <module>adapters/ozhuku-format-parquet</module>
 
         <module>application/ozhuku-application</module>
 
